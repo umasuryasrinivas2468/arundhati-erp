@@ -1,0 +1,119 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign in · Arundhati ERP</title><link rel="stylesheet" href="css/styles.css">
+<script src="js/employees.js"></script><script src="js/attendance-seed.js"></script><script src="js/data.js"></script><script src="js/ui.js"></script>
+<script>(function () { var u = ERP.auth.current(); if (u) location.replace(ERP.auth.homeFor(u.role)); })();</script>
+<style>
+  body.login { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
+  body.login > section { min-width: 0; }
+  .lg-brand {
+    position: relative; overflow: hidden; color: #fff; padding: 48px 56px; display: flex; flex-direction: column; justify-content: space-between; gap: 32px;
+    background: radial-gradient(1200px 600px at -10% -20%, #14b8a6 0%, transparent 55%), linear-gradient(150deg, #0f766e 0%, #0e7490 55%, #134e4a 100%);
+  }
+  .lg-brand::before, .lg-brand::after { content: ''; position: absolute; border-radius: 50%; background: rgba(255,255,255,.07); pointer-events: none; }
+  .lg-brand::before { width: 420px; height: 420px; right: -140px; bottom: -120px; }
+  .lg-brand::after { width: 220px; height: 220px; right: 80px; top: -90px; background: rgba(255,255,255,.05); }
+  .lg-logo { display: flex; align-items: center; gap: 14px; position: relative; z-index: 1; }
+  .lg-logo .mark { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.25); backdrop-filter: blur(6px); }
+  .lg-logo b { font-size: 20px; letter-spacing: -.01em; display: block; }
+  .lg-logo small { opacity: .8; font-size: 13px; }
+  .lg-pitch { position: relative; z-index: 1; max-width: 520px; }
+  .lg-pitch h1 { font-size: clamp(28px, 3.4vw, 40px); letter-spacing: -.025em; line-height: 1.12; }
+  .lg-pitch > p { opacity: .85; margin: 14px 0 28px; font-size: 15.5px; }
+  .lg-feats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  .lg-feats li { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; border-radius: 14px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); transition: background .2s, transform .2s; }
+  .lg-feats li:hover { background: rgba(255,255,255,.13); transform: translateX(4px); }
+  .lg-feats .fi { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: rgba(255,255,255,.16); flex: none; }
+  .lg-feats b { display: block; font-size: 14.5px; }
+  .lg-feats span { font-size: 13px; opacity: .8; }
+  .lg-flow { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .lg-flow em { font-style: normal; font-weight: 700; background: rgba(255,255,255,.18); padding: 0 7px; border-radius: 6px; font-size: 12px; }
+  .lg-foot { position: relative; z-index: 1; font-size: 12.5px; opacity: .75; }
+
+  .lg-side { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 32px; gap: 18px; }
+  .lg-theme { position: absolute; top: 18px; right: 18px; z-index: 5; }
+  .lg-card { width: min(440px, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 30px 28px; box-shadow: var(--shadow); animation: fade .35s ease-out; }
+  .lg-card h2 { font-size: 22px; letter-spacing: -.01em; }
+  .lg-card > p { margin: 4px 0 22px; }
+  .pw-wrap { position: relative; }
+  .pw-wrap input { padding-right: 46px; }
+  .pw-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: 0; background: none; color: var(--muted); cursor: pointer; width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; }
+  .pw-toggle:hover { background: var(--surface-2); color: var(--text); }
+  .lg-err { display: flex; gap: 8px; align-items: center; background: var(--bad-soft); color: var(--bad); border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 600; margin-bottom: 14px; }
+  .lg-card.shake { animation: shake .45s cubic-bezier(.36,.07,.19,.97); }
+  .lg-card.shake input { border-color: var(--bad); }
+  @keyframes shake { 10%, 90% { transform: translateX(-2px); } 20%, 80% { transform: translateX(4px); } 30%, 50%, 70% { transform: translateX(-8px); } 40%, 60% { transform: translateX(8px); } }
+  .lg-submit { margin-top: 6px; padding: 12px 16px; font-size: 15px; }
+  .lg-submit .spin { width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .lg-demo { width: min(440px, 100%); }
+  .lg-demo-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .lg-demo-head::before, .lg-demo-head::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .demo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+  .demo-card {
+    display: flex; gap: 11px; align-items: center; text-align: left; font: inherit; color: var(--text); cursor: pointer;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 11px 12px; position: relative; overflow: hidden;
+    transition: border-color .15s, transform .15s, box-shadow .15s;
+  }
+  .demo-card:hover { border-color: var(--rc); transform: translateY(-2px); box-shadow: var(--shadow); }
+  .demo-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .demo-card .rc { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; color: #fff; background: var(--rc); }
+  .demo-card b { display: block; font-size: 13.5px; }
+  .demo-card small { display: block; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .demo-card > span:last-child { min-width: 0; }
+  .demo-card.go { border-color: var(--rc); }
+  .demo-card.go::after { content: ''; position: absolute; left: 0; bottom: 0; height: 3px; background: var(--rc); animation: grow .7s ease-out forwards; }
+  @keyframes grow { from { width: 0; } to { width: 100%; } }
+  .lg-note { width: min(440px, 100%); display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; color: var(--muted); background: var(--surface-2); border-radius: 12px; padding: 10px 12px; }
+  .lg-note .icon { color: var(--primary); margin-top: 1px; }
+
+  @media (max-width: 900px) {
+    body.login { grid-template-columns: 1fr; }
+    .lg-brand { padding: 28px 16px 26px; gap: 20px; }
+    .lg-pitch > p { margin: 10px 0 18px; font-size: 14.5px; }
+    .lg-feats { gap: 8px; }
+    .lg-feats li { padding: 10px 12px; }
+    .lg-foot { display: none; }
+    .lg-side { padding: 24px 16px 40px; justify-content: flex-start; }
+    .lg-card { padding: 24px 18px; }
+    .lg-theme { position: absolute; top: 22px; right: 16px; z-index: 5; background: rgba(255,255,255,.16); color: #fff; border-color: rgba(255,255,255,.3); }
+    .lg-theme:hover { background: rgba(255,255,255,.26); }
+  }
+  @media (max-width: 420px) { .demo-grid { grid-template-columns: 1fr 1fr; } .demo-card { padding: 10px; gap: 8px; } .demo-card .rc { width: 30px; height: 30px; } }
+</style>
+</head><body class="login">
+  <button class="icon-btn lg-theme" id="lg-theme" aria-label="Toggle theme"></button>
+  <section class="lg-brand">
+    <div class="lg-logo">
+      <span class="mark" id="lg-mark"></span>
+      <span><b>Arundhati ERP</b><small id="lg-inst"></small></span>
+    </div>
+    <div class="lg-pitch">
+      <h1>Staff attendance &amp; leave, in one place.</h1>
+      <p>A lightweight ERP for faculty, departments and administration of the medical college and teaching hospital.</p>
+      <ul class="lg-feats" id="lg-feats"></ul>
+    </div>
+    <div class="lg-foot">Demo build · all data is stored locally in this browser.</div>
+  </section>
+
+  <section class="lg-side">
+    <form class="lg-card" id="lg-form" novalidate autocomplete="on">
+      <h2>Welcome back</h2>
+      <p class="muted">Sign in with your ERP credentials.</p>
+      <div class="lg-err" id="lg-err" hidden></div>
+      <label class="field"><span>Username</span><input id="lg-user" name="username" autocomplete="username" placeholder="e.g. admin" required></label>
+      <label class="field"><span>Password</span>
+        <div class="pw-wrap"><input id="lg-pass" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required>
+          <button type="button" class="pw-toggle" id="lg-eye" aria-label="Show password"></button></div>
+      </label>
+      <button class="btn btn-primary btn-block lg-submit" id="lg-submit" type="submit">Sign in</button>
+    </form>
+
+    <div class="lg-demo">
+      <div class="lg-demo-head">Demo logins · one click</div>
+      <div class="demo-grid" id="lg-demo"></div>
+    </div>
+    <p class="lg-note" id="lg-note"></p>
+  </section>
+<script src="js/login.js"></script>
+</body></html>

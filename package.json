@@ -1,0 +1,12 @@
+{
+  "name": "arundhati-erp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Staff attendance & leave ERP for Arundhati Medical College & Hospital (static front-end + Vercel function + Upstash Redis shared store).",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.34.3"
+  }
+}
