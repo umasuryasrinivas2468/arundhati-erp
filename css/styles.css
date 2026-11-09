@@ -145,7 +145,7 @@ body.app { display: flex; min-height: 100vh; }
 .demo-menu b { display: block; font-size: 13.5px; } .demo-menu small { color: var(--muted); font-family: ui-monospace, monospace; font-size: 11.5px; }
 .demo-reset { color: var(--bad) !important; border-top: 1px solid var(--border) !important; border-radius: 0 0 10px 10px !important; margin-top: 4px; font-size: 13px !important; }
 .role-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
-.role-admin { --rc: #64748b; } .role-principal { --rc: #7c3aed; } .role-dean { --rc: #1d4ed8; } .role-hod { --rc: #b45309; } .role-faculty { --rc: #0f766e; }
+.role-admin { --rc: #64748b; } .role-principal { --rc: #7c3aed; } .role-dean { --rc: #1d4ed8; } .role-hod { --rc: #b45309; } .role-faculty { --rc: #0f766e; } .role-student { --rc: #0369a1; }
 .role-dot { background: var(--rc); }
 .notif-dot { position: absolute; top: 7px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--bad); border: 2px solid var(--surface); }
 .notif-panel { width: 320px; max-height: 420px; overflow-y: auto; }

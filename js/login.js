@@ -69,7 +69,7 @@
   form.addEventListener('submit', (e) => { e.preventDefault(); attempt(user.value, pass.value); });
 
   // ---------- demo cards ----------
-  const ROLE_ICON = { admin: 'settings', principal: 'building', dean: 'chart', hod: 'users', faculty: 'user' };
+  const ROLE_ICON = { admin: 'settings', principal: 'building', dean: 'chart', hod: 'users', faculty: 'user', student: 'cap' };
   const grid = $('#lg-demo');
   grid.innerHTML = ERP.DEMO.map((d, i) => `<button type="button" class="demo-card role-${d.role}" data-i="${i}" title="Sign in as ${esc(d.label)}">
       <span class="rc">${icon(ROLE_ICON[d.role] || 'user', 18)}</span>

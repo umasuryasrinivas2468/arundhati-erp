@@ -532,7 +532,7 @@
   // ======================================================================
   let staffRole = '';
   function renderStaff(el) {
-    const all = ERP.users.all();
+    const all = ERP.users.all().filter((u) => u.role !== 'student');
     const counts = all.reduce((m, u) => { m[u.role] = (m[u.role] || 0) + 1; return m; }, {});
     const roles = ['admin', 'principal', 'dean', 'hod', 'faculty'];
     el.innerHTML = `
@@ -640,6 +640,74 @@
   }
 
   // ======================================================================
+  // STUDENTS (MBBS directory)
+  // ======================================================================
+  const YEAR_ROMAN = { 2: 'II', 3: 'III', 4: 'IV' };
+  let studentYear = '';
+  function renderStudents(el) {
+    const all = ERP.users.students();
+    const counts = all.reduce((m, u) => { m[u.year] = (m[u.year] || 0) + 1; return m; }, {});
+    const years = [2, 3, 4];
+    const withAtt = all.filter((u) => ERP.attendance.forEmp(u.empId).length).length;
+    el.innerHTML = `
+      <div class="cards">
+        ${U.stat('Total students', all.length, { iconName: 'cap', tone: 'accent', sub: `${years.map((y) => `${YEAR_ROMAN[y]}: ${counts[y] || 0}`).join(' · ')}` })}
+        ${U.stat('With attendance', withAtt, { iconName: 'calendar', tone: withAtt ? 'ok' : 'info', sub: withAtt ? `${all.length - withAtt} awaiting first upload` : 'Upload via Upload Attendance' })}
+        ${U.stat('MBBS batches', years.length, { iconName: 'users', tone: 'info', sub: 'II · III · IV year' })}
+      </div>
+      <div class="card">
+        <div class="card-head"><div><h3>Student directory</h3><p>${plural(all.length, 'student')} · login is the college email <span class="mono">rollno@aims.ac.in</span>, password is the roll number</p></div>
+          <div class="tabs" id="year-tabs"><button data-year="" class="${studentYear ? '' : 'active'}">All <small class="muted">${all.length}</small></button>${years.map((y) => `<button data-year="${y}" class="${String(studentYear) === String(y) ? 'active' : ''}">${YEAR_ROMAN[y]} MBBS <small class="muted">${counts[y] || 0}</small></button>`).join('')}</div></div>
+        <div id="students-table"></div>
+      </div>`;
+    const box = $('#students-table', el);
+    U.table(box, {
+      rows: all.filter((u) => !studentYear || String(u.year) === String(studentYear)),
+      pageSize: 12,
+      emptyText: 'No students in this group',
+      search: (u) => `${u.name} ${u.rollNo} ${u.email} ${u.batch} ${u.designation}`,
+      columns: [
+        { key: 'name', label: 'Name', render: (u) => personCell(u, u.email) },
+        { key: 'rollNo', label: 'Roll No.', render: (u) => `<span class="mono">${esc(u.rollNo)}</span>` },
+        { key: 'year', label: 'Year', sort: (u) => u.year, render: (u) => `<span class="badge badge-info">${YEAR_ROMAN[u.year] || u.year} MBBS</span>` },
+        { key: 'batch', label: 'Batch' },
+        { key: 'att', label: 'Attendance', noSort: true, render: (u) => { const s = ERP.attendance.summarize(ERP.attendance.forEmp(u.empId)); return s.total ? `${U.statusBadge('P')} <b>${s.percent}%</b> <small class="muted">· ${s.total}d</small>` : '<span class="muted small">—</span>'; } },
+        { key: 'login', label: 'Login (demo)', render: (u) => `<span class="cred mono">${esc(u.rollNo)}<i>/</i>${esc(u.password)}</span>` },
+        { key: 'act', label: '', noSort: true, render: (u) => `<button class="btn btn-ghost btn-sm" data-view="${esc(u.empId)}">View</button>` },
+      ],
+    });
+    $('#year-tabs', el).addEventListener('click', (e) => { const b = e.target.closest('[data-year]'); if (!b) return; studentYear = b.dataset.year; U.refresh(); });
+    box.addEventListener('click', (e) => { const b = e.target.closest('[data-view]'); if (b) studentModal(ERP.users.byEmp(b.dataset.view)); });
+  }
+
+  function studentModal(u) {
+    if (!u) return;
+    const rows = ERP.attendance.forEmp(u.empId);
+    const s = ERP.attendance.summarize(rows);
+    const recent = rows.slice(-6).reverse();
+    const body = `
+      <div class="row" style="justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+        <div class="person-cell">${U.avatar(u.name, 44)}<div><b style="font-size:16px">${esc(u.name)}</b><small>${esc(u.designation)} · ${esc(u.batch)}</small></div></div>
+        <span class="badge badge-info">${YEAR_ROMAN[u.year] || u.year} MBBS</span>
+      </div>
+      <dl class="kv" style="display:grid;grid-template-columns:130px 1fr;gap:9px 16px;font-size:13.5px">
+        <dt style="color:var(--muted);font-weight:600">Roll number</dt><dd style="margin:0"><code>${esc(u.rollNo)}</code></dd>
+        <dt style="color:var(--muted);font-weight:600">College email</dt><dd style="margin:0">${esc(u.email)}</dd>
+        <dt style="color:var(--muted);font-weight:600">Login password</dt><dd style="margin:0"><code>${esc(u.password)}</code></dd>
+      </dl>
+      <h3 style="margin:22px 0 12px">Attendance ${s.total ? `· ${s.percent}%` : ''}</h3>
+      ${s.total ? `<div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr))">
+          ${U.stat('Overall', `${s.percent}%`, { iconName: 'chart', tone: s.percent >= 85 ? 'ok' : s.percent >= 75 ? 'warn' : 'bad', sub: `${s.total} marked days` })}
+          ${U.stat('Present', s.P + s.OD, { iconName: 'check', tone: 'ok', sub: `${s.HD} half · ${s.OD} OD` })}
+          ${U.stat('Absent', s.A, { iconName: 'alert', tone: s.A ? 'bad' : 'info', sub: `${s.L} on leave` })}
+        </div>
+        <h4 style="margin:18px 0 8px;font-size:13px;color:var(--muted)">Recent records</h4>
+        <div class="list">${recent.map((r) => `<div class="list-item"><div><b>${ERP.fmt.date(r.date)}</b> <small class="muted">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][parseISO(r.date).getDay()]}</small></div><div>${U.statusBadge(r.status)} <small class="muted">${esc(r.inTime || '—')}–${esc(r.outTime || '—')}</small></div></div>`).join('')}</div>`
+        : notice('info', 'calendar', `No attendance has been uploaded for ${esc(u.name)} yet. Student attendance imports through <b>Upload Attendance</b> — the roll number is the Employee ID in the sheet.`)}`;
+    U.modal({ title: 'Student record', body, wide: true, actions: [{ label: 'Close', tone: 'ghost' }] });
+  }
+
+  // ======================================================================
   // ANNOUNCEMENTS
   // ======================================================================
   function renderAnnouncements(el) {
@@ -696,6 +764,7 @@
       { id: 'history', label: 'Upload History', icon: 'excel', render: renderHistory },
       { id: 'records', label: 'Attendance Records', icon: 'calendar', render: renderRecords },
       { id: 'staff', label: 'Staff Directory', icon: 'users', render: renderStaff },
+      { id: 'students', label: 'Students', icon: 'cap', render: renderStudents },
       { id: 'announcements', label: 'Announcements', icon: 'megaphone', render: renderAnnouncements },
     ],
   });
