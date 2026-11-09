@@ -56,12 +56,38 @@
   // Working days (Mon–Sat) in a range — what a leave actually consumes.
   const workingDays = (from, to) => daysBetween(from, to).filter((d) => !isSunday(d));
 
+  const DB_VERSION = 4;
+
+  // Student roster (MBBS 2nd/3rd/4th year) comes from js/students.js.
+  const ROMAN = { 2: 'II', 3: 'III', 4: 'IV' };
+
   // ---------- seed ----------
   function seedUsers() {
     return [
       { empId: 'ADM001', username: 'admin', password: 'admin123', role: 'admin', name: 'ERP Administrator', designation: 'ERP Administrator', dept: null, email: '', phone: '', joinDate: '' },
       ...window.ERP_SEED.employees.map((e) => ({ email: '', phone: '', joinDate: '', ...e })),
+      ...seedStudents(),
     ];
+  }
+
+  // Build login users for every MBBS student. Login is the college email
+  // (roll.no@aims.ac.in) and the password is the roll number itself; students
+  // may also sign in with the bare roll number (see auth.login).
+  function seedStudents() {
+    const src = (typeof window !== 'undefined' && window.ERP_STUDENTS) || [];
+    return src.map((s) => ({
+      empId: s.roll,
+      rollNo: s.roll,
+      username: `${s.roll}@aims.ac.in`,
+      password: String(s.roll),
+      email: `${s.roll}@aims.ac.in`,
+      role: 'student',
+      name: s.name,
+      year: s.year,
+      batch: s.batch,
+      designation: `${ROMAN[s.year] || s.year} MBBS Student`,
+      dept: null, phone: '', joinDate: '',
+    }));
   }
 
   // Attendance baked in from the Oct 2026 biometric "Basic Work Duration" reports
@@ -90,7 +116,7 @@
   function seed() {
     const attendance = seedAttendance();
     return {
-      version: 3,
+      version: DB_VERSION,
       institution: INSTITUTION,
       users: seedUsers(),
       attendance,
@@ -151,11 +177,11 @@
     if (remote === undefined) {            // no server reachable -> offline/local mode
       serverMode = false;
       try { db = JSON.parse(localStorage.getItem(KEY)); } catch (e) { db = null; }
-      if (!db || db.version !== 3) { db = seed(); saveLocal(); }
+      if (!db || db.version !== DB_VERSION) { db = seed(); saveLocal(); }
       return db;
     }
     serverMode = true;
-    if (!remote || remote.version !== 3) { db = seed(); saveLocal(); serverPutSync(); } // seed empty/old store
+    if (!remote || remote.version !== DB_VERSION) { db = seed(); saveLocal(); serverPutSync(); } // seed empty/old store
     else { db = remote; saveLocal(); }
     return db;
   }
@@ -172,7 +198,9 @@
     all: () => db.users,
     byEmp: (empId) => db.users.find((u) => u.empId === empId),
     byDept: (dept) => db.users.filter((u) => u.dept === dept),
-    staff: () => db.users.filter((u) => u.role !== 'admin'),
+    staff: () => db.users.filter((u) => u.role !== 'admin' && u.role !== 'student'),
+    students: () => db.users.filter((u) => u.role === 'student'),
+    byRoll: (roll) => db.users.find((u) => u.role === 'student' && u.rollNo === roll),
     hodOf: (dept) => db.users.find((u) => u.role === 'hod' && u.dept === dept),
     add(u) {
       if (db.users.some((x) => x.empId === u.empId)) throw new Error(`Employee ID ${u.empId} already exists`);
@@ -186,7 +214,14 @@
   // ---------- auth ----------
   const auth = {
     login(username, password) {
-      const u = db.users.find((x) => x.username.toLowerCase() === String(username).trim().toLowerCase() && x.password === password);
+      const q = String(username).trim().toLowerCase();
+      // Match on username, employee ID / roll number, or email — so staff sign in
+      // with their code and students with either their roll number or college email.
+      const u = db.users.find((x) => x.password === password && (
+        x.username.toLowerCase() === q ||
+        String(x.empId).toLowerCase() === q ||
+        (x.email && x.email.toLowerCase() === q)
+      ));
       if (!u) return null;
       sessionStorage.setItem(SESSION, u.empId);
       return u;
@@ -194,7 +229,7 @@
     loginAs(empId) { sessionStorage.setItem(SESSION, empId); return users.byEmp(empId); },
     current: () => users.byEmp(sessionStorage.getItem(SESSION)),
     logout() { sessionStorage.removeItem(SESSION); location.href = 'index.html'; },
-    homeFor: (role) => ({ admin: 'admin.html', principal: 'principal.html', dean: 'dean.html', hod: 'hod.html', faculty: 'faculty.html' }[role]),
+    homeFor: (role) => ({ admin: 'admin.html', principal: 'principal.html', dean: 'dean.html', hod: 'hod.html', faculty: 'faculty.html', student: 'student.html' }[role]),
     // Call at top of each page. Redirects if not logged in or wrong role.
     require(roles) {
       const u = auth.current();
@@ -406,6 +441,7 @@
       { role: 'dean', label: 'Dean', username: '755', password: 'aims@123', empId: '755' },
       { role: 'hod', label: 'HOD (Pathology)', username: '817', password: 'aims@123', empId: '817' },
       { role: 'faculty', label: 'Faculty / Staff', username: '1140', password: 'aims@123', empId: '1140' },
+      { role: 'student', label: 'Student (MBBS)', username: '2501052001', password: '2501052001', empId: '2501052001' },
     ],
   };
 })();
