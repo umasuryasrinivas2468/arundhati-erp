@@ -1,6 +1,7 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Student · Arundhati ERP</title><link rel="stylesheet" href="css/styles.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <style>
   /* ---- Student portal ---- */
   .st-hero { display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; }
@@ -33,7 +34,11 @@
   .idcard-grid dt { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; opacity: .75; font-weight: 700; }
   .idcard-grid dd { margin: 2px 0 0; font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .idcard-grid .trunc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
-  .idcard-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.2); position: relative; z-index: 1; font-size: 10.5px; opacity: .85; }
+  .idcard-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.2); position: relative; z-index: 1; }
+  .idcard-foot .idcard-foottext { font-size: 10.5px; opacity: .85; line-height: 1.4; }
+  .idcard-foot .idcard-foottext b { display: block; font-size: 11.5px; opacity: 1; }
+  .idcard-qr { background: #fff; padding: 6px; border-radius: 10px; width: 78px; height: 78px; flex: none; box-shadow: 0 4px 14px rgba(0,0,0,.2); display: grid; place-items: center; }
+  .idcard-qr svg { width: 100%; height: 100%; display: block; }
   .idcard-barcode { height: 22px; width: 92px; background: repeating-linear-gradient(90deg, #fff 0 2px, transparent 2px 4px, #fff 4px 5px, transparent 5px 9px); opacity: .9; border-radius: 2px; }
 
   /* Coming soon placeholder */

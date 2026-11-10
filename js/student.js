@@ -57,8 +57,31 @@
   }
   const legendHtml = () => `<div class="cal-legend">${Object.entries(ERP.STATUS).map(([k, s]) => `<span><i style="background:var(${TONE_VAR[s.tone]})"></i>${k} · ${s.label}</span>`).join('')}<span><i class="cal-d sun" style="aspect-ratio:auto;width:12px;height:12px"></i>Sunday</span></div>`;
 
+  // ---------- QR code ----------
+  /* Scannable QR (SVG string) encoding the student's identity details.
+   * Falls back to '' if the QR library didn't load, so the card still renders. */
+  function qrSvg(text) {
+    try {
+      if (typeof window.qrcode !== 'function') return '';
+      const qr = window.qrcode(0, 'M');
+      qr.addData(text);
+      qr.make();
+      return qr.createSvgTag({ scalable: true, margin: 0 });
+    } catch (e) { return ''; }
+  }
+  const studentQrText = (u) => [
+    'Arundhati Institute of Medical Sciences',
+    `Name: ${u.name}`,
+    `Roll No: ${u.rollNo}`,
+    `Programme: ${u.designation}`,
+    `Batch: ${u.batch}`,
+    `Year: ${u.year}`,
+    `Email: ${u.email}`,
+  ].join('\n');
+
   // ---------- student ID card ----------
   function idCard(u) {
+    const qr = qrSvg(studentQrText(u));
     return `<div class="idcard">
         <div class="idcard-top">
           <span class="idcard-mark">${icon('cross', 18)}</span>
@@ -77,7 +100,10 @@
           <div><dt>Email</dt><dd class="trunc" title="${esc(u.email)}">${esc(u.email)}</dd></div>
           <div><dt>Year</dt><dd>Year ${esc(u.year)}</dd></div>
         </dl>
-        <div class="idcard-foot"><span>${esc(ERP.INSTITUTION)}</span><span class="idcard-barcode" aria-hidden="true"></span></div>
+        <div class="idcard-foot">
+          <div class="idcard-foottext"><b>${esc(ERP.INSTITUTION)}</b>Scan the QR for student details</div>
+          ${qr ? `<div class="idcard-qr" title="Scan for student details" aria-label="QR code of student details">${qr}</div>` : '<span class="idcard-barcode" aria-hidden="true"></span>'}
+        </div>
       </div>`;
   }
 
@@ -187,6 +213,50 @@
     });
   }
 
+  function renderHostel(el) {
+    comingSoon(el, {
+      iconName: 'bed',
+      title: 'Hostel, coming soon',
+      lead: 'Everything about your hostel life in one place — your room allotment, mess menu and bills, and a quick way to raise maintenance or leave requests with the warden.',
+      note: 'The hostel office is onboarding to the ERP. Your room and mess details will appear here soon.',
+      feats: [
+        ['building', 'Room allotment', 'Your block, room number and roommates at a glance.'],
+        ['rupee', 'Mess & hostel bills', 'Monthly charges and payment status, all in one view.'],
+        ['file', 'Gate & leave pass', 'Apply for a hostel leave / outing pass online.'],
+        ['bell', 'Warden notices', 'Hostel announcements delivered straight to you.'],
+      ],
+    });
+  }
+
+  function renderTransport(el) {
+    comingSoon(el, {
+      iconName: 'bus',
+      title: 'Transport, coming soon',
+      lead: 'Pick your college bus route, see live timings and stops, and manage your transport pass — so you always know exactly when and where to catch your bus.',
+      note: 'College transport is being mapped into the ERP. Routes and timings will go live here shortly.',
+      feats: [
+        ['pin', 'Route & stops', 'Your assigned route with every stop and pickup time.'],
+        ['bus', 'Live bus timings', 'Know when your bus is due at your stop.'],
+        ['wallet', 'Transport pass', 'View and renew your bus pass online.'],
+        ['bell', 'Service alerts', 'Instant notice of delays or route changes.'],
+      ],
+    });
+  }
+
+  // ================= ANNOUNCEMENTS =================
+  function renderAnnouncements(el) {
+    const list = ERP.announcements.all();
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-head"><div><h3>Announcements</h3><p>Notices from the administration</p></div><span class="badge badge-muted">${list.length}</span></div>
+        <div class="list">${list.length ? list.map((a) => `
+          <div class="list-item" style="justify-content:flex-start;align-items:flex-start">
+            <span class="ann-icon">${icon('megaphone', 17)}</span>
+            <div style="flex:1;min-width:0"><b>${esc(a.title)}</b><p>${esc(a.body)}</p><small class="muted">${esc(nameOf(a.by))} · ${fmt.dateTime(a.at)} (${fmt.ago(a.at)})</small></div>
+          </div>`).join('') : ui.empty('No announcements yet', 'megaphone')}</div>
+      </div>`;
+  }
+
   // ================= PROFILE =================
   function renderProfile(el) {
     const u = ERP.users.byEmp(me.empId);
@@ -255,6 +325,9 @@
       { id: 'dashboard', label: 'Dashboard', icon: 'home', render: renderDashboard },
       { id: 'attendance', label: 'My Attendance', icon: 'calendar', render: renderAttendance },
       { id: 'fees', label: 'Fees Payment', icon: 'wallet', render: renderFees },
+      { id: 'hostel', label: 'Hostel', icon: 'bed', render: renderHostel },
+      { id: 'transport', label: 'Transport', icon: 'bus', render: renderTransport },
+      { id: 'announcements', label: 'Announcements', icon: 'megaphone', render: renderAnnouncements },
       { id: 'profile', label: 'Profile', icon: 'id', render: renderProfile },
     ],
   });
