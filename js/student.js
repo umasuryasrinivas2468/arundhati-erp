@@ -143,98 +143,48 @@
       </div>`;
   }
 
-  // ================= ATTENDANCE =================
-  function monthOptions() {
-    const opts = [];
-    for (let i = 0; i < 12; i++) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); opts.push([d.getFullYear(), d.getMonth()]); }
-    const first = ERP.attendance.forEmp(me.empId)[0];
-    if (first) {
-      const [fy, fm] = first.date.split('-').map(Number);
-      let d = new Date(opts[opts.length - 1][0], opts[opts.length - 1][1] - 1, 1);
-      while (d >= new Date(fy, fm - 1, 1)) { opts.push([d.getFullYear(), d.getMonth()]); d = new Date(d.getFullYear(), d.getMonth() - 1, 1); }
-    }
-    return opts;
+  // ================= COMING SOON =================
+  /* Reusable "feature on the way" placeholder. */
+  function comingSoon(el, { iconName, title, lead, note, feats }) {
+    el.innerHTML = `
+      <div class="card soon">
+        <div class="soon-ic">${icon(iconName, 40)}</div>
+        <div class="soon-badge"><i></i> Coming soon</div>
+        <h2>${esc(title)}</h2>
+        <p>${lead}</p>
+        <div class="soon-feats">${feats.map((f) => `<div class="soon-feat"><span class="sf-ic">${icon(f[0], 17)}</span><div><b>${esc(f[1])}</b><small>${esc(f[2])}</small></div></div>`).join('')}</div>
+        ${note ? `<p class="muted small" style="margin-top:26px">${esc(note)}</p>` : ''}
+      </div>`;
   }
 
   function renderAttendance(el) {
-    const opts = monthOptions();
-    const idx = opts.findIndex(([y, m]) => y === view.year && m === view.month);
-    const { year: y, month: m } = view;
-    const [from, to] = monthRange(y, m);
-    const rows = ERP.attendance.forEmp(me.empId, from, to);
-    const s = ERP.attendance.summarize(rows);
-    const up = latestUpload();
+    comingSoon(el, {
+      iconName: 'calendar',
+      title: 'Attendance is on the way',
+      lead: 'Soon you’ll be able to track your class and clinical attendance here — month by month, with a clear picture of where you stand against the <b>75%</b> exam-eligibility requirement.',
+      note: 'The office is setting up the attendance feed. You’ll see your records here the moment it goes live.',
+      feats: [
+        ['chart', 'Live attendance %', 'Your running percentage, updated as each day is marked.'],
+        ['calendar', 'Monthly calendar', 'A day-by-day grid with status and timings at a glance.'],
+        ['alert', 'Shortage alerts', 'Early warnings if you dip below the required 75%.'],
+        ['excel', 'Export to Excel', 'Download your record for any month in one click.'],
+      ],
+    });
+  }
 
-    el.innerHTML = `
-      <div class="card" style="padding:14px 18px">
-        <div class="row" style="justify-content:space-between">
-          <div class="month-nav">
-            <button class="icon-btn" data-step="1" aria-label="Previous month" ${idx >= opts.length - 1 ? 'disabled' : ''}><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button>
-            <select aria-label="Month">${opts.map(([oy, om], i) => `<option value="${i}" ${i === idx ? 'selected' : ''}>${FULL_MONTHS[om]} ${oy}</option>`).join('')}</select>
-            <button class="icon-btn" data-step="-1" aria-label="Next month" ${idx <= 0 ? 'disabled' : ''}><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
-          </div>
-          <div class="tabs" role="tablist">
-            <button data-tab="calendar" class="${view.attTab === 'calendar' ? 'active' : ''}">Calendar</button>
-            <button data-tab="list" class="${view.attTab === 'list' ? 'active' : ''}">List</button>
-          </div>
-        </div>
-      </div>
-      ${up ? `<div class="banner banner-info">${icon('clock', 18)}<div><b>Last updated from upload on ${fmt.dateTime(up.at)}</b><span class="small">${esc(up.fileName)}${up.from ? ` · covers ${fmt.date(up.from)} – ${fmt.date(up.to)}` : ''}</span></div></div>` : ''}
-      ${rows.length && s.percent < 75 ? `<div class="banner banner-bad">${icon('alert', 18)}<div><b>Attendance below 75% for ${FULL_MONTHS[m]} ${y}</b><span class="small">You are at ${s.percent}%. A minimum of 75% is required to be eligible for exams. Please contact your class coordinator if any records look incorrect.</span></div></div>` : ''}
-      <div class="cols">
-        <div class="card" id="att-main"></div>
-        <div class="card">
-          <div class="card-head"><div><h3>Month summary</h3><p>${FULL_MONTHS[m]} ${y}</p></div></div>
-          ${rows.length ? `<div id="att-donut"></div>
-            <div class="pct-block">
-              <div class="row" style="justify-content:space-between;align-items:flex-end"><span class="muted small" style="font-weight:600">Attendance</span><span class="pct-big" style="color:var(${s.percent >= 85 ? '--ok' : s.percent >= 75 ? '--warn' : '--bad'})">${s.percent}%</span></div>
-              ${ui.meter(s.percent)}
-              <span class="muted small">(Present + On duty + ½ × Half day) ÷ (marked days − leave). Minimum required: 75%.</span>
-            </div>` : ui.empty('No attendance records for this month yet.', 'calendar')}
-        </div>
-      </div>`;
-
-    const go = (i) => { if (i < 0 || i >= opts.length) return; [view.year, view.month] = opts[i]; ui.refresh(); };
-    $$('[data-step]', el).forEach((b) => b.onclick = () => go(idx + Number(b.dataset.step)));
-    $('select', el).onchange = (e) => go(Number(e.target.value));
-    $$('[data-tab]', el).forEach((b) => b.onclick = () => { view.attTab = b.dataset.tab; $$('[data-tab]', el).forEach((x) => x.classList.toggle('active', x === b)); drawMain(); });
-
-    if (rows.length) ui.donut($('#att-donut', el), Object.entries(ERP.STATUS).map(([k, st]) => ({ label: st.label, value: s[k] || 0, tone: st.tone })), `${s.percent}%`);
-
-    function drawMain() {
-      const box = $('#att-main', el);
-      box.classList.remove('fade-in'); void box.offsetWidth; box.classList.add('fade-in');
-      if (view.attTab === 'calendar') {
-        box.innerHTML = `<div class="card-head"><div><h3>${FULL_MONTHS[m]} ${y}</h3><p>Hover or tap a day to see status and timings</p></div></div>
-          <div class="cal-wrap">${calendarHtml(y, m)}</div>${legendHtml()}
-          ${rows.length ? '' : `<p class="muted small" style="margin:14px 0 0;text-align:center">No records for this month${from > util.today() ? ' — it hasn\'t started yet' : ''}.</p>`}`;
-        return;
-      }
-      box.innerHTML = '<div class="card-head"><div><h3>Daily records</h3><p>' + daysLabel(rows.length) + ' recorded</p></div></div><div id="att-table"></div>';
-      const tableRows = rows.slice().reverse();
-      ui.table($('#att-table', box), {
-        columns: [
-          { key: 'date', label: 'Date', render: (r) => `<b>${fmt.date(r.date)}</b>` },
-          { key: 'day', label: 'Day', render: (r) => DOW[util.parseISO(r.date).getDay()], sort: (r) => util.parseISO(r.date).getDay() },
-          { key: 'status', label: 'Status', render: (r) => `${ui.statusBadge(r.status)} <span class="muted small">${esc(ERP.STATUS[r.status]?.label || '')}</span>` },
-          { key: 'inTime', label: 'In', render: (r) => esc(r.inTime || '—') },
-          { key: 'outTime', label: 'Out', render: (r) => esc(r.outTime || '—') },
-          { key: 'hours', label: 'Hours', align: 'right', render: (r) => fmtDur(hoursWorked(r)), sort: (r) => hoursWorked(r) ?? -1 },
-        ],
-        rows: tableRows, pageSize: 10,
-        emptyText: 'No records for this month',
-        toolbar: `<button class="btn btn-ghost btn-sm" data-export ${rows.length ? '' : 'disabled'}>${icon('excel', 16)} Export to Excel</button>`,
-      });
-      const ex = $('[data-export]', box);
-      if (ex) ex.onclick = () => {
-        ui.downloadXlsx(`Attendance_${me.rollNo}_${y}-${pad(m + 1)}.xlsx`,
-          ['Roll No', 'Name', 'Date', 'Day', 'Status', 'In Time', 'Out Time', 'Hours'],
-          rows.map((r) => [me.rollNo, me.name, r.date, DOW[util.parseISO(r.date).getDay()], ERP.STATUS[r.status]?.label || r.status, r.inTime, r.outTime, hoursWorked(r) == null ? '' : +(hoursWorked(r) / 60).toFixed(2)]),
-          `${FULL_MONTHS[m].slice(0, 3)} ${y}`);
-        ui.toast('Attendance exported');
-      };
-    }
-    drawMain();
+  function renderFees(el) {
+    comingSoon(el, {
+      iconName: 'wallet',
+      title: 'Fees & payments, coming soon',
+      lead: 'A single place to view your fee structure, see what’s due, pay online securely, and download receipts — no more standing in queues at the accounts office.',
+      note: 'Online fee payment is being set up with the accounts office. Watch this space.',
+      feats: [
+        ['rupee', 'Fee statement', 'Your full fee structure and running balance, term by term.'],
+        ['wallet', 'Pay online', 'Secure payment by UPI, card or net-banking.'],
+        ['file', 'Instant receipts', 'Download a receipt the moment a payment clears.'],
+        ['bell', 'Due reminders', 'Timely nudges before each instalment is due.'],
+      ],
+    });
   }
 
   // ================= PROFILE =================
@@ -304,6 +254,7 @@
     sections: [
       { id: 'dashboard', label: 'Dashboard', icon: 'home', render: renderDashboard },
       { id: 'attendance', label: 'My Attendance', icon: 'calendar', render: renderAttendance },
+      { id: 'fees', label: 'Fees Payment', icon: 'wallet', render: renderFees },
       { id: 'profile', label: 'Profile', icon: 'id', render: renderProfile },
     ],
   });
