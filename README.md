@@ -44,6 +44,17 @@ Staff logins are seeded from `js/employees.js`, generated from *EDITED EMPLOYEE 
 | Dean | `755` | Dr. A. Suma Preethi |
 | HOD | e.g. `817` (Pathology), `c030` (Biochemistry), `aims0379` (General Medicine) | 23 department heads |
 | Faculty / Staff | e.g. `1140`, `c037` | everyone else |
+| Student (MBBS) | e.g. `2501052001` | 450 II/III/IV-year students |
+
+**Student module:** MBBS students are seeded from `js/students.js` (generated from the
+2/3/4-year MBBS lists — 450 students: 150 II, 163 III, 137 IV). **Login is the college
+email `rollno@aims.ac.in` and the password is the roll number** (students can also sign in
+with the bare roll number, and change the password under Profile). The student portal
+(`student.html` + `js/student.js`) gives each student a dashboard with a live attendance
+ring, a monthly attendance calendar/list with Excel export, a digital student ID card, and
+announcements. Admins manage the roster under **Admin → Students** (searchable directory by
+year, per-student attendance detail). Student attendance imports through the same **Upload
+Attendance** screen — the roll number goes in the *Employee ID* column.
 
 **Attendance Excel format** (Admin → Upload Attendance has a template download):
 `Employee ID | Name | Department | Date | Status | In Time | Out Time` — Status is `P`, `A`, `L`, `HD` (half day) or `OD` (on duty); Date is `DD/MM/YYYY` or `YYYY-MM-DD`.
@@ -52,4 +63,4 @@ Staff logins are seeded from `js/employees.js`, generated from *EDITED EMPLOYEE 
 
 **Leave workflow:** Faculty applies → HOD recommends/rejects → Principal approves/rejects. HOD and Dean leave — and staff in departments without a HOD (Admin, Housekeeping, Accounts, OT staff, …) — goes straight to the Principal.
 
-Files: `js/data.js` (data layer), `js/ui.js` + `css/styles.css` (shared shell), one HTML + JS per role, `js/leaders.js` (shared by HOD/Principal/Dean).
+Files: `js/data.js` (data layer), `js/ui.js` + `css/styles.css` (shared shell), one HTML + JS per role, `js/leaders.js` (shared by HOD/Principal/Dean), `js/students.js` (MBBS roster) + `js/student.js` (student portal).
