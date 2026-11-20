@@ -13,14 +13,24 @@
   // Departments and staff come from js/employees.js (generated from the employee Excel list).
   const DEPARTMENTS = window.ERP_SEED.departments;
 
-  // Leave types and yearly entitlement (days). LOP has no cap.
+  // Leave types. Yearly entitlement (days) now varies by staff category — see
+  // LEAVE_CATEGORY_QUOTAS below (per the leave-policy note: Doctors CL 24 + AL 8,
+  // Teaching/Non-teaching CL 12). LOP has no cap.
   const LEAVE_TYPES = [
-    { code: 'CL', name: 'Casual Leave', quota: 12 },
-    { code: 'EL', name: 'Earned Leave', quota: 15 },
-    { code: 'ML', name: 'Medical Leave', quota: 10 },
-    { code: 'OD', name: 'On Duty', quota: 10 },
-    { code: 'LOP', name: 'Loss of Pay', quota: null },
+    { code: 'CL', name: 'Casual Leave' },
+    { code: 'AL', name: 'Academic Leave' },
+    { code: 'OD', name: 'On Duty' },
+    { code: 'LOP', name: 'Loss of Pay' },
   ];
+
+  // Yearly entitlement (days) by staff category (employees.js → leaveCategory).
+  // null = no cap; 0 = not entitled to that type.
+  const LEAVE_CATEGORY_QUOTAS = {
+    doctor:      { CL: 24, AL: 8, OD: 10, LOP: null }, // CL 24 = 2/month (biometric CLS column)
+    teaching:    { CL: 12, AL: 0, OD: 10, LOP: null },
+    nonteaching: { CL: 12, AL: 0, OD: 10, LOP: null },
+  };
+  const DEFAULT_LEAVE_CATEGORY = 'nonteaching';
 
   // Attendance status codes accepted in the Excel sheet.
   const STATUS = {
@@ -56,10 +66,10 @@
   // Working days (Mon–Sat) in a range — what a leave actually consumes.
   const workingDays = (from, to) => daysBetween(from, to).filter((d) => !isSunday(d));
 
-  const DB_VERSION = 4;
+  const DB_VERSION = 6;
 
-  // Student roster (MBBS 2nd/3rd/4th year) comes from js/students.js.
-  const ROMAN = { 2: 'II', 3: 'III', 4: 'IV' };
+  // Student roster (MBBS 1st/2nd/3rd/4th year) comes from js/students.js.
+  const ROMAN = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV' };
 
   // ---------- seed ----------
   function seedUsers() {
@@ -93,24 +103,33 @@
   // Attendance baked in from the Oct 2026 biometric "Basic Work Duration" reports
   // (js/attendance-seed.js). Tagged as one synthetic Admin upload so it shows up in
   // Admin → Upload history like any uploaded sheet.
-  const SEED_UPLOAD_ID = 'UP-seed-biometric-oct2026';
+  // One synthetic Admin upload per monthly biometric report (so each shows up in
+  // Admin → Upload history). Records are tagged by date to the matching report.
+  const SEED_UPLOADS = [
+    { id: 'UP-seed-biometric-oct2026', month: '2026-10', fileName: 'AIMS Oct 2026 — Basic Work Duration (Hospital + College).xls' },
+    { id: 'UP-seed-biometric-nov2026', month: '2026-11', fileName: 'NOV 1-10 2026 — Basic Work Duration (College & Hospital).xls' },
+  ];
+  const seedUploadIdFor = (date) => (SEED_UPLOADS.find((u) => date.startsWith(u.month)) || SEED_UPLOADS[0]).id;
   function seedAttendance() {
     const src = (typeof window !== 'undefined' && window.ERP_ATTENDANCE_SEED) || [];
-    return src.map((r) => ({ ...r, uploadId: SEED_UPLOAD_ID }));
+    return src.map((r) => ({ ...r, uploadId: seedUploadIdFor(r.date) }));
   }
   function seedUploads(att) {
-    if (!att.length) return [];
-    const dates = att.map((r) => r.date).sort();
-    return [{
-      id: SEED_UPLOAD_ID,
-      fileName: 'AIMS Oct 2026 — Basic Work Duration (Hospital + College).xls',
-      uploadedBy: 'ADM001',
-      at: new Date().toISOString(),
-      rows: att.length,
-      replaced: 0,
-      from: dates[0],
-      to: dates[dates.length - 1],
-    }];
+    return SEED_UPLOADS.map((u) => {
+      const rows = att.filter((r) => r.uploadId === u.id);
+      if (!rows.length) return null;
+      const dates = rows.map((r) => r.date).sort();
+      return {
+        id: u.id,
+        fileName: u.fileName,
+        uploadedBy: 'ADM001',
+        at: new Date().toISOString(),
+        rows: rows.length,
+        replaced: 0,
+        from: dates[0],
+        to: dates[dates.length - 1],
+      };
+    }).filter(Boolean);
   }
 
   function seed() {
@@ -123,7 +142,9 @@
       uploads: seedUploads(attendance),
       leaves: [],
       announcements: [
-        { id: uid('AN'), title: 'Biometric sync', body: 'October 2026 attendance has been imported from the biometric Basic Work Duration reports. New months upload via Admin → Upload attendance.', by: 'ADM001', at: new Date().toISOString() },
+        { id: uid('AN'), title: 'Biometric sync', body: 'October 2026 (01–26 Oct) and November 2026 (01–10 Nov) attendance has been imported from the biometric Basic Work Duration reports. New months upload via Admin → Upload attendance.', by: 'ADM001', at: new Date().toISOString() },
+        { id: uid('AN'), title: 'Biometric attendance — late-punch policy', body: 'Reporting more than 15 minutes late counts as a late punch. 1st & 2nd late punches in a month: no loss of pay. 3rd to 5th late punches: half-day loss of pay each. Beyond the 5th late punch: one full day loss of pay each.', by: 'ADM001', at: new Date().toISOString() },
+        { id: uid('AN'), title: 'Leave entitlement (2026–27)', body: 'Casual Leave (CL): Doctors 24/year (2 per month), Teaching & Non-teaching staff 12/year. Academic Leave (AL): Doctors 8/year. On Duty (OD) and Loss of Pay (LOP) apply to all. Leave types: CL, AL, OD, LOP.', by: 'ADM001', at: new Date().toISOString() },
       ],
       notifications: [], // {id, to: empId, text, at, read}
     };
@@ -343,10 +364,14 @@
     },
     balance(empId) {
       const year = String(new Date().getFullYear());
+      const u = users.byEmp(empId);
+      const cat = (u && u.leaveCategory) || DEFAULT_LEAVE_CATEGORY;
+      const quotas = LEAVE_CATEGORY_QUOTAS[cat] || LEAVE_CATEGORY_QUOTAS[DEFAULT_LEAVE_CATEGORY];
       return LEAVE_TYPES.map((t) => {
+        const quota = quotas[t.code] === undefined ? null : quotas[t.code];
         const used = db.leaves.filter((l) => l.empId === empId && l.type === t.code && l.status === LEAVE_STATE.APPROVED && l.from.startsWith(year)).reduce((s, l) => s + l.days, 0);
         const pending = db.leaves.filter((l) => l.empId === empId && l.type === t.code && [LEAVE_STATE.PENDING_HOD, LEAVE_STATE.PENDING_PRINCIPAL].includes(l.status)).reduce((s, l) => s + l.days, 0);
-        return { ...t, used, pending, remaining: t.quota == null ? null : t.quota - used };
+        return { ...t, quota, used, pending, remaining: quota == null ? null : quota - used };
       });
     },
     /* Apply. {empId, type, from, to, reason, halfDay}. Throws on validation errors. */
