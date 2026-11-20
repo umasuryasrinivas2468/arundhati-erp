@@ -7,7 +7,7 @@
   const PENDING = [LS.PENDING_HOD, LS.PENDING_PRINCIPAL];
   const LIVE = [...PENDING, LS.APPROVED];
   const STAFF_ROLES = ['faculty', 'hod', 'dean', 'principal'];
-  const TYPE_TONE = { CL: 'accent', EL: 'info', ML: 'bad', OD: 'ok', LOP: 'warn' };
+  const TYPE_TONE = { CL: 'accent', AL: 'info', OD: 'ok', LOP: 'warn' };
   const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
