@@ -642,18 +642,18 @@
   // ======================================================================
   // STUDENTS (MBBS directory)
   // ======================================================================
-  const YEAR_ROMAN = { 2: 'II', 3: 'III', 4: 'IV' };
+  const YEAR_ROMAN = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV' };
   let studentYear = '';
   function renderStudents(el) {
     const all = ERP.users.students();
     const counts = all.reduce((m, u) => { m[u.year] = (m[u.year] || 0) + 1; return m; }, {});
-    const years = [2, 3, 4];
+    const years = [1, 2, 3, 4];
     const withAtt = all.filter((u) => ERP.attendance.forEmp(u.empId).length).length;
     el.innerHTML = `
       <div class="cards">
         ${U.stat('Total students', all.length, { iconName: 'cap', tone: 'accent', sub: `${years.map((y) => `${YEAR_ROMAN[y]}: ${counts[y] || 0}`).join(' · ')}` })}
         ${U.stat('With attendance', withAtt, { iconName: 'calendar', tone: withAtt ? 'ok' : 'info', sub: withAtt ? `${all.length - withAtt} awaiting first upload` : 'Upload via Upload Attendance' })}
-        ${U.stat('MBBS batches', years.length, { iconName: 'users', tone: 'info', sub: 'II · III · IV year' })}
+        ${U.stat('MBBS batches', years.length, { iconName: 'users', tone: 'info', sub: 'I · II · III · IV year' })}
       </div>
       <div class="card">
         <div class="card-head"><div><h3>Student directory</h3><p>${plural(all.length, 'student')} · login is the college email <span class="mono">rollno@aims.ac.in</span>, password is the roll number</p></div>

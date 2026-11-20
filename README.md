@@ -24,17 +24,17 @@ No build step — static files are served as-is and `api/db.js` is built as a fu
 `vercel.json` pins `framework: null` and keeps `.html` URLs. For local dev with the
 server: `vercel env pull .env.local` then `vercel dev`.
 
-**Preloaded attendance:** October 2026 attendance (01–26 Oct) is seeded from the two
-biometric *Basic Work Duration* reports (`js/attendance-seed.js`, 3,563 records across
-167 staff) into the store on first load, and shows up under Admin → Upload history as one
-import. Bumping the DB `version` in `js/data.js` forces a re-seed and **overwrites** the
-store, so only do that for a deliberate reset.
+**Preloaded attendance:** October 2026 (01–26 Oct) and November 2026 (01–10 Nov) attendance
+is seeded from the biometric *Basic Work Duration* reports (`js/attendance-seed.js`, 4,821
+records) into the store on first load, and shows up under Admin → Upload history as two
+imports (one per monthly report). Bumping the DB `version` in `js/data.js` forces a re-seed
+and **overwrites** the store, so only do that for a deliberate reset.
 
 **Security note:** `/api/db` is an open same-origin endpoint (no server-side auth — login
 is still client-side), so anyone who can reach the site can read or overwrite the DB. Fine
 for an internal/trusted deployment; a public one needs real auth + per-record endpoints.
 
-Staff logins are seeded from `js/employees.js`, generated from *EDITED EMPLOYEE LIST.xls* (158 staff, 40 departments). **Username = employee code** (case-insensitive, e.g. `c024`, `1140`), **default password `aims@123`** — staff can change it under Profile.
+Staff logins are seeded from `js/employees.js`, generated from *EDITED EMPLOYEE LIST 12.xls* (158 staff, 42 departments). Each record carries a `leaveCategory` (doctor / teaching / non-teaching) that drives leave entitlement. **Username = employee code** (case-insensitive, e.g. `c024`, `1140`), **default password `aims@123`** — staff can change it under Profile.
 
 | Role | Login | Who |
 |---|---|---|
@@ -44,10 +44,10 @@ Staff logins are seeded from `js/employees.js`, generated from *EDITED EMPLOYEE 
 | Dean | `755` | Dr. A. Suma Preethi |
 | HOD | e.g. `817` (Pathology), `c030` (Biochemistry), `aims0379` (General Medicine) | 23 department heads |
 | Faculty / Staff | e.g. `1140`, `c037` | everyone else |
-| Student (MBBS) | e.g. `2501052001` | 450 II/III/IV-year students |
+| Student (MBBS) | e.g. `2601052001` | 600 I/II/III/IV-year students |
 
 **Student module:** MBBS students are seeded from `js/students.js` (generated from the
-2/3/4-year MBBS lists — 450 students: 150 II, 163 III, 137 IV). **Login is the college
+1/2/3/4-year MBBS lists — 600 students: 150 I, 150 II, 163 III, 137 IV). **Login is the college
 email `rollno@aims.ac.in` and the password is the roll number** (students can also sign in
 with the bare roll number, and change the password under Profile). The student portal
 (`student.html` + `js/student.js`) gives each student a dashboard with a live attendance
@@ -62,5 +62,9 @@ Attendance** screen — the roll number goes in the *Employee ID* column.
 **Biometric reports:** the uploader also auto-detects the machine's *Monthly Status Report (Basic Work Duration)* matrix export (days across columns, a Status/InTime/OutTime block per employee) — upload the `.xls` as-is. Codes map `P→P`, `A→A`, `WOP`/`HP→P` (worked on a week-off/holiday); `WO`/`H` (weekly-off/holiday) create no record. Codes not in the staff master are flagged as errors and skipped.
 
 **Leave workflow:** Faculty applies → HOD recommends/rejects → Principal approves/rejects. HOD and Dean leave — and staff in departments without a HOD (Admin, Housekeeping, Accounts, OT staff, …) — goes straight to the Principal.
+
+**Leave entitlement** (per `LEAVE_CATEGORY_QUOTAS` in `js/data.js`, from the leave-policy note): Casual Leave (CL) — Doctors 24/yr (2/month), Teaching & Non-teaching 12/yr. Academic Leave (AL) — Doctors 8/yr. On Duty (OD) 10/yr and Loss of Pay (LOP, uncapped) for all. Entitlement is resolved per employee from their `leaveCategory`.
+
+**Biometric late-punch policy** (shown as an announcement): >15 min late = a late punch; 1st–2nd late punches/month = no loss of pay; 3rd–5th = half-day LOP each; beyond 5th = one full day LOP each. Displayed only — attendance is imported from the biometric reports, not computed from punch times.
 
 Files: `js/data.js` (data layer), `js/ui.js` + `css/styles.css` (shared shell), one HTML + JS per role, `js/leaders.js` (shared by HOD/Principal/Dean), `js/students.js` (MBBS roster) + `js/student.js` (student portal).
