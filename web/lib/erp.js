@@ -1,0 +1,424 @@
+/* Arundhati ERP — data + business-logic layer (ported from js/data.js).
+ *
+ * Same rules as the static build, adapted for React/Next:
+ *   - seed data comes from ./seed/* ES modules (not window globals)
+ *   - the DB loads ASYNchronously (fetch) instead of a synchronous XHR; call
+ *     ERP.ready() once and await it before reading data (the ErpProvider does this)
+ *   - save() notifies subscribers so React can re-render (ERP.subscribe)
+ *   - auth has no navigation side-effects; homeFor() returns a route path and
+ *     route-guarding lives in a React hook (useRequireRole)
+ *
+ * Backend contract is UNCHANGED: GET /api/db -> { ok, db }, PUT /api/db <- { db }.
+ */
+import { ERP_SEED } from './seed/employees';
+import { ERP_STUDENTS } from './seed/students';
+import { ERP_ATTENDANCE_SEED } from './seed/attendance-seed';
+
+const KEY = 'arundhati-erp-db-v1';
+const SESSION = 'arundhati-erp-session';
+
+const INSTITUTION = 'Arundhati Medical College & Hospital';
+const DEPARTMENTS = ERP_SEED.departments;
+
+const LEAVE_TYPES = [
+  { code: 'CL', name: 'Casual Leave', quota: 12 },
+  { code: 'EL', name: 'Earned Leave', quota: 15 },
+  { code: 'ML', name: 'Medical Leave', quota: 10 },
+  { code: 'OD', name: 'On Duty', quota: 10 },
+  { code: 'LOP', name: 'Loss of Pay', quota: null },
+];
+
+const STATUS = {
+  P: { label: 'Present', tone: 'ok' },
+  A: { label: 'Absent', tone: 'bad' },
+  L: { label: 'On Leave', tone: 'warn' },
+  HD: { label: 'Half Day', tone: 'info' },
+  OD: { label: 'On Duty', tone: 'accent' },
+};
+
+const LEAVE_STATE = {
+  PENDING_HOD: 'Pending HOD',
+  PENDING_PRINCIPAL: 'Pending Principal',
+  APPROVED: 'Approved',
+  REJECTED: 'Rejected',
+  CANCELLED: 'Cancelled',
+};
+
+// ---------- helpers ----------
+const pad = (n) => String(n).padStart(2, '0');
+const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const today = () => iso(new Date());
+const parseISO = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const uid = (p) => `${p}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+const isSunday = (s) => parseISO(s).getDay() === 0;
+
+function daysBetween(from, to) {
+  const out = [];
+  for (let d = parseISO(from); d <= parseISO(to); d.setDate(d.getDate() + 1)) out.push(iso(d));
+  return out;
+}
+const workingDays = (from, to) => daysBetween(from, to).filter((d) => !isSunday(d));
+
+const DB_VERSION = 4;
+const ROMAN = { 2: 'II', 3: 'III', 4: 'IV' };
+
+// ---------- seed ----------
+function seedUsers() {
+  return [
+    { empId: 'ADM001', username: 'admin', password: 'admin123', role: 'admin', name: 'ERP Administrator', designation: 'ERP Administrator', dept: null, email: '', phone: '', joinDate: '' },
+    ...ERP_SEED.employees.map((e) => ({ email: '', phone: '', joinDate: '', ...e })),
+    ...seedStudents(),
+  ];
+}
+
+function seedStudents() {
+  const src = ERP_STUDENTS || [];
+  return src.map((s) => ({
+    empId: s.roll,
+    rollNo: s.roll,
+    username: `${s.roll}@aims.ac.in`,
+    password: String(s.roll),
+    email: `${s.roll}@aims.ac.in`,
+    role: 'student',
+    name: s.name,
+    year: s.year,
+    batch: s.batch,
+    designation: `${ROMAN[s.year] || s.year} MBBS Student`,
+    dept: null, phone: '', joinDate: '',
+  }));
+}
+
+const SEED_UPLOAD_ID = 'UP-seed-biometric-oct2026';
+function seedAttendance() {
+  const src = ERP_ATTENDANCE_SEED || [];
+  return src.map((r) => ({ ...r, uploadId: SEED_UPLOAD_ID }));
+}
+function seedUploads(att) {
+  if (!att.length) return [];
+  const dates = att.map((r) => r.date).sort();
+  return [{
+    id: SEED_UPLOAD_ID,
+    fileName: 'AIMS Oct 2026 — Basic Work Duration (Hospital + College).xls',
+    uploadedBy: 'ADM001',
+    at: new Date().toISOString(),
+    rows: att.length,
+    replaced: 0,
+    from: dates[0],
+    to: dates[dates.length - 1],
+  }];
+}
+
+function seed() {
+  const attendance = seedAttendance();
+  return {
+    version: DB_VERSION,
+    institution: INSTITUTION,
+    users: seedUsers(),
+    attendance,
+    uploads: seedUploads(attendance),
+    leaves: [],
+    announcements: [
+      { id: uid('AN'), title: 'Biometric sync', body: 'October 2026 attendance has been imported from the biometric Basic Work Duration reports. New months upload via Admin → Upload attendance.', by: 'ADM001', at: new Date().toISOString() },
+    ],
+    notifications: [],
+  };
+}
+
+// ---------- persistence ----------
+const API = (typeof window !== 'undefined' && window.ERP_API_URL) || '/api/db';
+let db = null;
+let serverMode = false;
+let loadPromise = null;
+let putInFlight = false, putDirty = false, putTimer = null;
+
+const listeners = new Set();
+const emit = () => { listeners.forEach((fn) => { try { fn(); } catch (e) {} }); };
+function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
+
+async function serverGet() {
+  try {
+    const res = await fetch(API, { cache: 'no-store' });
+    if (!res.ok) return undefined;
+    const j = await res.json();
+    return j && j.ok ? j.db : undefined; // db may be null when the store is empty
+  } catch (e) { return undefined; }
+}
+async function serverPut() {
+  try {
+    const res = await fetch(API, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ db }) });
+    return res.ok;
+  } catch (e) { return false; }
+}
+// Async write-through for ordinary saves (coalesced, last write wins).
+function serverPutAsync() {
+  putDirty = true;
+  if (putInFlight) return;
+  putInFlight = true; putDirty = false;
+  fetch(API, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ db }) })
+    .then((r) => { if (!r.ok) putDirty = true; })
+    .catch(() => { putDirty = true; })
+    .finally(() => { putInFlight = false; if (putDirty) { clearTimeout(putTimer); putTimer = setTimeout(serverPutAsync, 400); } });
+}
+function saveLocal() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {} }
+
+async function load() {
+  const remote = await serverGet();
+  if (remote === undefined) {            // no server reachable -> offline/local mode
+    serverMode = false;
+    try { db = JSON.parse(localStorage.getItem(KEY)); } catch (e) { db = null; }
+    if (!db || db.version !== DB_VERSION) { db = seed(); saveLocal(); }
+    return db;
+  }
+  serverMode = true;
+  if (!remote || remote.version !== DB_VERSION) { db = seed(); saveLocal(); await serverPut(); }
+  else { db = remote; saveLocal(); }
+  return db;
+}
+
+// Call once; awaited by the ErpProvider before the app renders.
+function ready() { if (!loadPromise) loadPromise = load(); return loadPromise; }
+const isReady = () => db !== null;
+
+function save() { saveLocal(); if (serverMode) serverPutAsync(); emit(); }
+async function reset() { db = seed(); saveLocal(); if (serverMode) await serverPut(); emit(); return db; }
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', () => { if (serverMode && (putDirty || putInFlight)) { try { navigator.sendBeacon?.(API, new Blob([JSON.stringify({ db })], { type: 'application/json' })); } catch (e) {} } });
+}
+
+// ---------- users ----------
+const users = {
+  all: () => db.users,
+  byEmp: (empId) => db.users.find((u) => u.empId === empId),
+  byDept: (dept) => db.users.filter((u) => u.dept === dept),
+  staff: () => db.users.filter((u) => u.role !== 'admin' && u.role !== 'student'),
+  students: () => db.users.filter((u) => u.role === 'student'),
+  byRoll: (roll) => db.users.find((u) => u.role === 'student' && u.rollNo === roll),
+  hodOf: (dept) => db.users.find((u) => u.role === 'hod' && u.dept === dept),
+  add(u) {
+    if (db.users.some((x) => x.empId === u.empId)) throw new Error(`Employee ID ${u.empId} already exists`);
+    if (db.users.some((x) => x.username === u.username)) throw new Error(`Username ${u.username} already taken`);
+    db.users.push({ joinDate: today(), phone: '', ...u }); save();
+  },
+  update(empId, patch) { Object.assign(users.byEmp(empId), patch); save(); },
+  remove(empId) { db.users = db.users.filter((u) => u.empId !== empId); save(); },
+};
+
+// ---------- auth (no navigation side-effects) ----------
+const HOME = { admin: '/admin', principal: '/principal', dean: '/dean', hod: '/hod', faculty: '/faculty', student: '/student' };
+const auth = {
+  login(username, password) {
+    const q = String(username).trim().toLowerCase();
+    const u = db.users.find((x) => x.password === password && (
+      x.username.toLowerCase() === q ||
+      String(x.empId).toLowerCase() === q ||
+      (x.email && x.email.toLowerCase() === q)
+    ));
+    if (!u) return null;
+    try { sessionStorage.setItem(SESSION, u.empId); } catch (e) {}
+    return u;
+  },
+  loginAs(empId) { try { sessionStorage.setItem(SESSION, empId); } catch (e) {} return users.byEmp(empId); },
+  current: () => { try { return users.byEmp(sessionStorage.getItem(SESSION)); } catch (e) { return undefined; } },
+  logout() { try { sessionStorage.removeItem(SESSION); } catch (e) {} },
+  homeFor: (role) => HOME[role] || '/',
+};
+
+// ---------- attendance ----------
+const attendance = {
+  all: () => db.attendance,
+  forEmp(empId, from, to) {
+    return db.attendance.filter((r) => r.empId === empId && (!from || r.date >= from) && (!to || r.date <= to))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  },
+  forDate: (date) => db.attendance.filter((r) => r.date === date),
+  latestDate: () => db.attendance.reduce((m, r) => (r.date > m ? r.date : m), ''),
+  summarize(rows) {
+    const c = { P: 0, A: 0, L: 0, HD: 0, OD: 0, total: rows.length };
+    rows.forEach((r) => { c[r.status] = (c[r.status] || 0) + 1; });
+    const base = c.total - c.L;
+    c.percent = base ? Math.round(((c.P + c.OD + 0.5 * c.HD) / base) * 1000) / 10 : 0;
+    return c;
+  },
+  summaryFor(empId, from, to) { return attendance.summarize(attendance.forEmp(empId, from, to)); },
+  deptSummary(dept, from, to) {
+    const ids = new Set(users.byDept(dept).map((u) => u.empId));
+    return attendance.summarize(db.attendance.filter((r) => ids.has(r.empId) && (!from || r.date >= from) && (!to || r.date <= to)));
+  },
+  importRows(rows, fileName, uploadedBy) {
+    const id = uid('UP');
+    const key = (r) => `${r.empId}|${r.date}`;
+    const incoming = new Map(rows.map((r) => [key(r), { ...r, uploadId: id }]));
+    let replaced = 0;
+    db.attendance = db.attendance.filter((r) => { if (incoming.has(key(r))) { replaced++; return false; } return true; });
+    db.attendance.push(...incoming.values());
+    const dates = rows.map((r) => r.date).sort();
+    const up = { id, fileName, uploadedBy, at: new Date().toISOString(), rows: incoming.size, replaced, from: dates[0], to: dates[dates.length - 1] };
+    db.uploads.unshift(up);
+    new Set(rows.map((r) => r.empId)).forEach((e) => notify(e, `Attendance updated for ${fmt.date(up.from)} – ${fmt.date(up.to)}`));
+    save();
+    return up;
+  },
+  uploads: () => db.uploads,
+  deleteUpload(id) {
+    db.attendance = db.attendance.filter((r) => r.uploadId !== id);
+    db.uploads = db.uploads.filter((u) => u.id !== id);
+    save();
+  },
+  validate(rawRows) {
+    const pick = (o, names) => {
+      const k = Object.keys(o).find((h) => names.includes(h.toString().trim().toLowerCase().replace(/[\s_.-]+/g, '')));
+      return k === undefined ? '' : o[k];
+    };
+    const normDate = (v) => {
+      if (v instanceof Date && !isNaN(v)) return iso(v);
+      if (typeof v === 'number') { const d = new Date(Math.round((v - 25569) * 86400000)); return iso(new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())); }
+      const s = String(v).trim();
+      let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/); if (m) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+      m = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/); if (m) return `${m[3]}-${pad(m[2])}-${pad(m[1])}`;
+      return null;
+    };
+    const normTime = (v) => {
+      if (v === '' || v == null) return '';
+      if (typeof v === 'number') { const mins = Math.round(v * 1440); return `${pad(Math.floor(mins / 60) % 24)}:${pad(mins % 60)}`; }
+      if (v instanceof Date) return `${pad(v.getHours())}:${pad(v.getMinutes())}`;
+      const m = String(v).trim().match(/^(\d{1,2}):(\d{2})/); return m ? `${pad(m[1])}:${m[2]}` : '';
+    };
+    const valid = [], errors = [];
+    rawRows.forEach((o, i) => {
+      const row = i + 2;
+      const empId = String(pick(o, ['employeeid', 'empid', 'empcode', 'employeecode', 'id'])).trim().toUpperCase();
+      const dateRaw = pick(o, ['date', 'attendancedate']);
+      const statusRaw = String(pick(o, ['status', 'attendance', 'att'])).trim().toUpperCase();
+      if (!empId && !dateRaw && !statusRaw) return;
+      const status = { PRESENT: 'P', ABSENT: 'A', LEAVE: 'L', 'HALF DAY': 'HD', HALFDAY: 'HD', 'ON DUTY': 'OD', ONDUTY: 'OD' }[statusRaw] || statusRaw;
+      let date = normDate(dateRaw);
+      if (date && iso(parseISO(date)) !== date) date = null;
+      if (!empId) return errors.push({ row, message: 'Missing Employee ID' });
+      if (!users.byEmp(empId)) return errors.push({ row, message: `Unknown Employee ID "${empId}"` });
+      if (!date) return errors.push({ row, message: `Invalid date "${dateRaw}"` });
+      if (!STATUS[status]) return errors.push({ row, message: `Invalid status "${statusRaw}" (use P, A, L, HD, OD)` });
+      valid.push({ empId, date, status, inTime: normTime(pick(o, ['intime', 'in', 'checkin', 'punchin'])), outTime: normTime(pick(o, ['outtime', 'out', 'checkout', 'punchout'])) });
+    });
+    return { valid, errors };
+  },
+  TEMPLATE_HEADERS: ['Employee ID', 'Name', 'Department', 'Date', 'Status', 'In Time', 'Out Time'],
+};
+
+// ---------- leaves ----------
+function notify(to, text) { db.notifications.unshift({ id: uid('NT'), to, text, at: new Date().toISOString(), read: false }); }
+
+const leaves = {
+  all: () => db.leaves,
+  byId: (id) => db.leaves.find((l) => l.id === id),
+  forEmp: (empId) => db.leaves.filter((l) => l.empId === empId).sort((a, b) => b.appliedAt.localeCompare(a.appliedAt)),
+  forDept: (dept) => db.leaves.filter((l) => users.byEmp(l.empId)?.dept === dept),
+  pendingFor(user) {
+    if (user.role === 'hod') return db.leaves.filter((l) => l.status === LEAVE_STATE.PENDING_HOD && users.byEmp(l.empId)?.dept === user.dept);
+    if (user.role === 'principal') return db.leaves.filter((l) => l.status === LEAVE_STATE.PENDING_PRINCIPAL);
+    return [];
+  },
+  balance(empId) {
+    const year = String(new Date().getFullYear());
+    return LEAVE_TYPES.map((t) => {
+      const used = db.leaves.filter((l) => l.empId === empId && l.type === t.code && l.status === LEAVE_STATE.APPROVED && l.from.startsWith(year)).reduce((s, l) => s + l.days, 0);
+      const pending = db.leaves.filter((l) => l.empId === empId && l.type === t.code && [LEAVE_STATE.PENDING_HOD, LEAVE_STATE.PENDING_PRINCIPAL].includes(l.status)).reduce((s, l) => s + l.days, 0);
+      return { ...t, used, pending, remaining: t.quota == null ? null : t.quota - used };
+    });
+  },
+  apply({ empId, type, from, to, reason, halfDay = false }) {
+    const u = users.byEmp(empId);
+    if (!from || !to || to < from) throw new Error('Choose a valid date range');
+    if (!reason || reason.trim().length < 5) throw new Error('Please give a reason (min 5 characters)');
+    const days = halfDay ? 0.5 : workingDays(from, to).length;
+    if (!days) throw new Error('Selected range has no working days');
+    const overlap = db.leaves.find((l) => l.empId === empId && ![LEAVE_STATE.REJECTED, LEAVE_STATE.CANCELLED].includes(l.status) && l.from <= to && l.to >= from);
+    if (overlap) throw new Error(`Overlaps with an existing leave (${fmt.date(overlap.from)} – ${fmt.date(overlap.to)})`);
+    const bal = leaves.balance(empId).find((b) => b.code === type);
+    if (bal.quota != null && bal.remaining - bal.pending < days) throw new Error(`Insufficient ${bal.name} balance (${bal.remaining - bal.pending} available)`);
+    const status = u.role === 'faculty' && users.hodOf(u.dept) ? LEAVE_STATE.PENDING_HOD : LEAVE_STATE.PENDING_PRINCIPAL;
+    const l = { id: uid('LV'), empId, type, from, to, days, halfDay, reason: reason.trim(), status, appliedAt: new Date().toISOString(), history: [] };
+    db.leaves.push(l);
+    const approver = status === LEAVE_STATE.PENDING_HOD ? users.hodOf(u.dept) : db.users.find((x) => x.role === 'principal');
+    if (approver) notify(approver.empId, `${u.name} applied for ${type} (${days} day${days === 1 ? '' : 's'})`);
+    save();
+    return l;
+  },
+  act(id, actor, action, remark = '') {
+    const l = leaves.byId(id);
+    if (!l) throw new Error('Leave not found');
+    if (!leaves.pendingFor(actor).includes(l)) throw new Error('You cannot act on this request');
+    const at = new Date().toISOString();
+    if (action === 'reject') {
+      l.status = LEAVE_STATE.REJECTED;
+      l.history.push({ by: actor.empId, role: actor.role, action: 'Rejected', remark, at });
+      notify(l.empId, `Your ${l.type} leave from ${fmt.date(l.from)} was rejected by ${actor.designation}`);
+    } else if (actor.role === 'hod') {
+      l.status = LEAVE_STATE.PENDING_PRINCIPAL;
+      l.history.push({ by: actor.empId, role: actor.role, action: 'Recommended', remark, at });
+      notify(l.empId, `Your ${l.type} leave was recommended by HOD and forwarded to Principal`);
+      const p = db.users.find((x) => x.role === 'principal'); if (p) notify(p.empId, `Leave from ${users.byEmp(l.empId).name} awaiting approval`);
+    } else {
+      l.status = LEAVE_STATE.APPROVED;
+      l.history.push({ by: actor.empId, role: actor.role, action: 'Approved', remark, at });
+      notify(l.empId, `Your ${l.type} leave from ${fmt.date(l.from)} was approved`);
+    }
+    save();
+    return l;
+  },
+  cancel(id, empId) {
+    const l = leaves.byId(id);
+    if (!l || l.empId !== empId) throw new Error('Not allowed');
+    if (![LEAVE_STATE.PENDING_HOD, LEAVE_STATE.PENDING_PRINCIPAL].includes(l.status)) throw new Error('Only pending requests can be cancelled');
+    l.status = LEAVE_STATE.CANCELLED;
+    l.history.push({ by: empId, role: 'self', action: 'Cancelled', remark: '', at: new Date().toISOString() });
+    save();
+  },
+};
+
+// ---------- announcements & notifications ----------
+const announcements = {
+  all: () => db.announcements.slice().sort((a, b) => b.at.localeCompare(a.at)),
+  add(title, body, by) { db.announcements.push({ id: uid('AN'), title, body, by, at: new Date().toISOString() }); save(); },
+  remove(id) { db.announcements = db.announcements.filter((a) => a.id !== id); save(); },
+};
+const notifications = {
+  for: (empId) => db.notifications.filter((n) => n.to === empId),
+  unread: (empId) => db.notifications.filter((n) => n.to === empId && !n.read).length,
+  markAllRead(empId) { db.notifications.forEach((n) => { if (n.to === empId) n.read = true; }); save(); },
+};
+
+// ---------- formatting ----------
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const fmt = {
+  date: (s) => { if (!s) return '—'; const d = parseISO(s.slice(0, 10)); return `${pad(d.getDate())} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; },
+  dateTime: (s) => { const d = new Date(s); return `${pad(d.getDate())} ${MONTHS[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`; },
+  ago(s) {
+    const sec = (Date.now() - new Date(s).getTime()) / 1000;
+    if (sec < 60) return 'just now'; if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+    if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`; return `${Math.floor(sec / 86400)}d ago`;
+  },
+  deptName: (code) => DEPARTMENTS.find((d) => d.code === code)?.name || '—',
+  leaveName: (code) => LEAVE_TYPES.find((t) => t.code === code)?.name || code,
+  initials: (name) => name.replace(/^Dr\.\s*/, '').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase(),
+  MONTHS,
+};
+
+const DEMO = [
+  { role: 'admin', label: 'Admin', username: 'admin', password: 'admin123', empId: 'ADM001' },
+  { role: 'principal', label: 'Principal', username: 'c024', password: 'aims@123', empId: 'C024' },
+  { role: 'dean', label: 'Dean', username: '755', password: 'aims@123', empId: '755' },
+  { role: 'hod', label: 'HOD (Pathology)', username: '817', password: 'aims@123', empId: '817' },
+  { role: 'faculty', label: 'Faculty / Staff', username: '1140', password: 'aims@123', empId: '1140' },
+  { role: 'student', label: 'Student (MBBS)', username: '2501052001', password: '2501052001', empId: '2501052001' },
+];
+
+export const ERP = {
+  INSTITUTION, DEPARTMENTS, LEAVE_TYPES, STATUS, LEAVE_STATE,
+  util: { iso, today, parseISO, daysBetween, workingDays, isSunday, uid },
+  db: () => db, save, reset, ready, isReady, subscribe,
+  users, auth, attendance, leaves, announcements, notifications, fmt,
+  DEMO,
+};
+
+export default ERP;
