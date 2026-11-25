@@ -51,6 +51,18 @@ export function Empty({ msg, iconName = 'file' }) {
   return <div className="empty"><Icon name={iconName} size={32} /><p>{msg}</p></div>;
 }
 
+/* "Coming soon" placeholder for modules that are not built yet. */
+export function ComingSoon({ name, note, iconName = 'rocket' }) {
+  return (
+    <div className="coming-soon">
+      <span className="cs-mark"><Icon name={iconName} size={30} /></span>
+      <h2 className="cs-title">{name}</h2>
+      <span className="cs-pill">Coming soon</span>
+      <p className="cs-note">{note || 'This feature is under development and will be available soon.'}</p>
+    </div>
+  );
+}
+
 /* Animated horizontal bar chart. items: [{label, value, tone?}] */
 export function Bars({ items, max = null, suffix = '' }) {
   const ref = useRef(null);

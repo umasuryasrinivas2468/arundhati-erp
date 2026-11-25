@@ -5,7 +5,7 @@ import ERP from '@/lib/erp';
 import { useErp, useRequireRole } from '@/lib/ErpProvider';
 import { Shell } from '@/components/Shell';
 import { Icon } from '@/components/Icon';
-import { Stat, Meter, Empty, Avatar } from '@/components/ui';
+import { Stat, Meter, Empty, Avatar, ComingSoon } from '@/components/ui';
 import { AttendanceCalendar, CalendarLegend } from '@/components/Calendar';
 import { toast } from '@/components/Toast';
 import { FULL_MONTHS, monthRange, greeting, longDate } from '@/lib/dates';
@@ -63,27 +63,6 @@ function IdCard({ u }) {
           ? <div className="idcard-qr" title="Scan for student details" aria-label="QR code of student details" dangerouslySetInnerHTML={{ __html: qr }} />
           : <span className="idcard-barcode" aria-hidden="true" />}
       </div>
-    </div>
-  );
-}
-
-// ---------- coming soon ----------
-function ComingSoon({ iconName, title, lead, note, feats }) {
-  return (
-    <div className="card soon">
-      <div className="soon-ic"><Icon name={iconName} size={40} /></div>
-      <div className="soon-badge"><i /> Coming soon</div>
-      <h2>{title}</h2>
-      <p dangerouslySetInnerHTML={{ __html: lead }} />
-      <div className="soon-feats">
-        {feats.map((f, i) => (
-          <div className="soon-feat" key={i}>
-            <span className="sf-ic"><Icon name={f[0]} size={17} /></span>
-            <div><b>{f[1]}</b><small>{f[2]}</small></div>
-          </div>
-        ))}
-      </div>
-      {note ? <p className="muted small" style={{ marginTop: 26 }}>{note}</p> : null}
     </div>
   );
 }
@@ -158,79 +137,6 @@ function Dashboard({ me }) {
         </div>
       </div>
     </>
-  );
-}
-
-// ================= COMING SOON SECTIONS =================
-function Attendance() {
-  useErp();
-  return (
-    <ComingSoon
-      iconName="calendar"
-      title="Attendance is on the way"
-      lead="Soon you’ll be able to track your class and clinical attendance here — month by month, with a clear picture of where you stand against the <b>75%</b> exam-eligibility requirement."
-      note="The office is setting up the attendance feed. You’ll see your records here the moment it goes live."
-      feats={[
-        ['chart', 'Live attendance %', 'Your running percentage, updated as each day is marked.'],
-        ['calendar', 'Monthly calendar', 'A day-by-day grid with status and timings at a glance.'],
-        ['alert', 'Shortage alerts', 'Early warnings if you dip below the required 75%.'],
-        ['excel', 'Export to Excel', 'Download your record for any month in one click.'],
-      ]}
-    />
-  );
-}
-
-function Fees() {
-  useErp();
-  return (
-    <ComingSoon
-      iconName="wallet"
-      title="Fees & payments, coming soon"
-      lead="A single place to view your fee structure, see what’s due, pay online securely, and download receipts — no more standing in queues at the accounts office."
-      note="Online fee payment is being set up with the accounts office. Watch this space."
-      feats={[
-        ['rupee', 'Fee statement', 'Your full fee structure and running balance, term by term.'],
-        ['wallet', 'Pay online', 'Secure payment by UPI, card or net-banking.'],
-        ['file', 'Instant receipts', 'Download a receipt the moment a payment clears.'],
-        ['bell', 'Due reminders', 'Timely nudges before each instalment is due.'],
-      ]}
-    />
-  );
-}
-
-function Hostel() {
-  useErp();
-  return (
-    <ComingSoon
-      iconName="bed"
-      title="Hostel, coming soon"
-      lead="Everything about your hostel life in one place — your room allotment, mess menu and bills, and a quick way to raise maintenance or leave requests with the warden."
-      note="The hostel office is onboarding to the ERP. Your room and mess details will appear here soon."
-      feats={[
-        ['building', 'Room allotment', 'Your block, room number and roommates at a glance.'],
-        ['rupee', 'Mess & hostel bills', 'Monthly charges and payment status, all in one view.'],
-        ['file', 'Gate & leave pass', 'Apply for a hostel leave / outing pass online.'],
-        ['bell', 'Warden notices', 'Hostel announcements delivered straight to you.'],
-      ]}
-    />
-  );
-}
-
-function Transport() {
-  useErp();
-  return (
-    <ComingSoon
-      iconName="bus"
-      title="Transport, coming soon"
-      lead="Pick your college bus route, see live timings and stops, and manage your transport pass — so you always know exactly when and where to catch your bus."
-      note="College transport is being mapped into the ERP. Routes and timings will go live here shortly."
-      feats={[
-        ['pin', 'Route & stops', 'Your assigned route with every stop and pickup time.'],
-        ['bus', 'Live bus timings', 'Know when your bus is due at your stop.'],
-        ['wallet', 'Transport pass', 'View and renew your bus pass online.'],
-        ['bell', 'Service alerts', 'Instant notice of delays or route changes.'],
-      ]}
-    />
   );
 }
 
@@ -329,10 +235,10 @@ export default function StudentPage() {
   if (!me) return null;
   const sections = [
     { id: 'dashboard', label: 'Dashboard', icon: 'home', render: (u) => <Dashboard me={u} /> },
-    { id: 'attendance', label: 'My Attendance', icon: 'calendar', render: () => <Attendance /> },
-    { id: 'fees', label: 'Fees Payment', icon: 'wallet', render: () => <Fees /> },
-    { id: 'hostel', label: 'Hostel', icon: 'bed', render: () => <Hostel /> },
-    { id: 'transport', label: 'Transport', icon: 'bus', render: () => <Transport /> },
+    { id: 'attendance', label: 'My Attendance', icon: 'calendar', render: () => <ComingSoon name="My Attendance" iconName="calendar" /> },
+    { id: 'fees', label: 'Fees Payment', icon: 'wallet', render: () => <ComingSoon name="Fees Payment" iconName="wallet" /> },
+    { id: 'hostel', label: 'Hostel', icon: 'bed', render: () => <ComingSoon name="Hostel" iconName="bed" /> },
+    { id: 'transport', label: 'Transport', icon: 'bus', render: () => <ComingSoon name="Transport" iconName="bus" /> },
     { id: 'announcements', label: 'Announcements', icon: 'megaphone', render: () => <Announcements /> },
     { id: 'profile', label: 'Profile', icon: 'id', render: (u) => <Profile me={u} /> },
   ];

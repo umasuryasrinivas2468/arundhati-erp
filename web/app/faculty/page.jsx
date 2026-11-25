@@ -4,7 +4,7 @@ import ERP from '@/lib/erp';
 import { useErp, useRequireRole } from '@/lib/ErpProvider';
 import { Shell, goSection } from '@/components/Shell';
 import { Icon } from '@/components/Icon';
-import { Stat, Meter, Empty, Avatar, LeaveBadge, StatusBadge, Donut } from '@/components/ui';
+import { Stat, Meter, Empty, Avatar, LeaveBadge, StatusBadge, Donut, ComingSoon } from '@/components/ui';
 import { DataTable } from '@/components/DataTable';
 import { AttendanceCalendar, CalendarLegend } from '@/components/Calendar';
 import { openModal, confirmBox } from '@/components/Modal';
@@ -320,7 +320,7 @@ function Apply({ me }) {
     try {
       const l = ERP.leaves.apply({ empId: me.empId, type, from, to: effTo, reason, halfDay: hd });
       toast(`${l.type} leave for ${daysLabel(l.days)} submitted to ${l.status === LEAVE_STATE.PENDING_HOD ? 'HOD' : 'Principal'}`);
-      goSection('leaves');
+      goSection('dashboard');
     } catch (err) {
       const msg = err.message || String(err);
       const field = /reason/i.test(msg) ? 'reason' : /balance/i.test(msg) ? 'type' : /date|range|overlap|working/i.test(msg) ? 'from' : '';
@@ -528,8 +528,8 @@ export default function FacultyPage() {
   const sections = [
     { id: 'dashboard', label: 'Dashboard', icon: 'home', render: (u) => <Dashboard me={u} /> },
     { id: 'attendance', label: 'My Attendance', icon: 'calendar', render: (u) => <Attendance me={u} /> },
-    { id: 'apply', label: 'Apply Leave', icon: 'plus', render: (u) => <Apply me={u} /> },
-    { id: 'leaves', label: 'My Leaves', icon: 'leave', render: (u) => <Leaves me={u} />, badge: pendingCount },
+    { id: 'apply', label: 'Apply Leave', icon: 'plus', render: () => <ComingSoon name="Apply Leave" /> },
+    { id: 'leaves', label: 'My Leaves', icon: 'leave', render: () => <ComingSoon name="My Leaves" /> },
     { id: 'profile', label: 'Profile', icon: 'user', render: (u) => <Profile me={u} /> },
   ];
   return <Shell user={me} sections={sections} />;

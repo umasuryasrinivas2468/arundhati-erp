@@ -4,8 +4,8 @@ import { ToastHost } from '@/components/Toast';
 import { ModalHost } from '@/components/Modal';
 
 export const metadata = {
-  title: 'Arundhati ERP',
-  description: 'Staff attendance & leave ERP for Arundhati Medical College & Hospital.',
+  title: 'CampusHub AIMS',
+  description: 'CampusHub AIMS — campus portal for students, faculty and administration.',
 };
 
 export const viewport = { width: 'device-width', initialScale: 1 };
