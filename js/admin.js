@@ -554,7 +554,7 @@
         { key: 'role', label: 'Role', render: (u) => rolePill(u.role) },
         { key: 'dept', label: 'Department', sort: (u) => u.dept || '', render: (u) => esc(u.dept ? ERP.fmt.deptName(u.dept) : '—') },
         { key: 'designation', label: 'Designation' },
-        { key: 'username', label: 'Login (demo)', render: (u) => `<span class="cred mono">${esc(u.username)}<i>/</i>${esc(u.password)}</span>` },
+        { key: 'username', label: 'Login', render: (u) => `<span class="cred mono">${esc(u.username)}<i>/</i>${esc(u.password)}</span>` },
         { key: 'act', label: '', noSort: true, render: (u) => `<div class="acts"><button class="icon-btn" data-edit="${esc(u.empId)}" title="Edit" aria-label="Edit">${icon('settings', 15)}</button><button class="icon-btn danger" data-rm="${esc(u.empId)}" ${u.empId === me.empId ? 'disabled title="You cannot delete yourself"' : 'title="Delete"'} aria-label="Delete">${icon('trash', 15)}</button></div>` },
       ],
     });
@@ -672,7 +672,7 @@
         { key: 'year', label: 'Year', sort: (u) => u.year, render: (u) => `<span class="badge badge-info">${YEAR_ROMAN[u.year] || u.year} MBBS</span>` },
         { key: 'batch', label: 'Batch' },
         { key: 'att', label: 'Attendance', noSort: true, render: (u) => { const s = ERP.attendance.summarize(ERP.attendance.forEmp(u.empId)); return s.total ? `${U.statusBadge('P')} <b>${s.percent}%</b> <small class="muted">· ${s.total}d</small>` : '<span class="muted small">—</span>'; } },
-        { key: 'login', label: 'Login (demo)', render: (u) => `<span class="cred mono">${esc(u.rollNo)}<i>/</i>${esc(u.password)}</span>` },
+        { key: 'login', label: 'Login', render: (u) => `<span class="cred mono">${esc(u.rollNo)}<i>/</i>${esc(u.password)}</span>` },
         { key: 'act', label: '', noSort: true, render: (u) => `<button class="btn btn-ghost btn-sm" data-view="${esc(u.empId)}">View</button>` },
       ],
     });

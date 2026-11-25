@@ -223,14 +223,6 @@
           <button class="icon-btn only-mobile" data-open-nav aria-label="Menu">${icon('menu')}</button>
           <div class="crumbs"><span class="role-pill role-${user.role}">${esc(ROLE_LABEL[user.role])}</span><h1 id="page-title"></h1></div>
           <div class="top-actions">
-            <div class="demo-switch">
-              <button class="btn btn-ghost btn-sm" data-demo-toggle>${icon('swap', 16)}<span class="hide-sm">Demo login</span></button>
-              <div class="demo-menu" hidden>
-                <div class="demo-head">Switch to a demo account</div>
-                ${ERP.DEMO.map((d) => `<button data-demo="${d.empId}" class="${d.empId === user.empId ? 'active' : ''}"><span class="role-dot role-${d.role}"></span><span><b>${esc(d.label)}</b><small>${esc(d.username)} / ${esc(d.password)}</small></span></button>`).join('')}
-                <button data-reset class="demo-reset">${icon('trash', 14)} Reset demo data</button>
-              </div>
-            </div>
             <button class="icon-btn" data-theme aria-label="Toggle theme">${icon('moon')}</button>
             <div class="notif">
               <button class="icon-btn" data-notif aria-label="Notifications">${icon('bell')}<em class="notif-dot" hidden></em></button>
@@ -250,25 +242,17 @@
     themeBtn.onclick = () => { applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); syncThemeIcon(); };
     syncThemeIcon();
 
-    // demo switcher
-    const menu = $('.demo-menu');
-    $('[data-demo-toggle]').onclick = (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; $('.notif-panel').hidden = true; };
-    $$('[data-demo]').forEach((b) => b.onclick = () => { const u = ERP.auth.loginAs(b.dataset.demo); location.href = ERP.auth.homeFor(u.role); });
-    $('[data-reset]').onclick = async () => {
-      if (await confirmBox('Reset demo data?', 'All uploads, leave requests and changes will be wiped and the sample data restored.', { okLabel: 'Reset', tone: 'danger' })) { ERP.reset(); toast('Demo data restored'); setTimeout(() => location.reload(), 500); }
-    };
-
     // notifications
     const panel = $('.notif-panel');
     $('[data-notif]').onclick = (e) => {
-      e.stopPropagation(); menu.hidden = true; panel.hidden = !panel.hidden;
+      e.stopPropagation(); panel.hidden = !panel.hidden;
       if (!panel.hidden) {
         const list = ERP.notifications.for(user.empId).slice(0, 12);
         panel.innerHTML = `<div class="demo-head">Notifications</div>${list.length ? list.map((n) => `<div class="notif-item ${n.read ? '' : 'unread'}"><p>${esc(n.text)}</p><small>${ERP.fmt.ago(n.at)}</small></div>`).join('') : '<p class="muted small" style="padding:12px 14px">You\'re all caught up.</p>'}`;
         ERP.notifications.markAllRead(user.empId); syncBadges();
       }
     };
-    document.addEventListener('click', (e) => { if (!e.target.closest('.demo-switch')) menu.hidden = true; if (!e.target.closest('.notif')) panel.hidden = true; });
+    document.addEventListener('click', (e) => { if (!e.target.closest('.notif')) panel.hidden = true; });
 
     window.addEventListener('hashchange', route);
     route();
