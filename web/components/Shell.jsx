@@ -6,8 +6,6 @@ import { useErp } from '@/lib/ErpProvider';
 import { toggleTheme, isDark, ACCENTS, DEFAULT_ACCENT, getAccent, applyAccent } from '@/lib/theme';
 import { Icon } from './Icon';
 import { Avatar } from './ui';
-import { confirmBox } from './Modal';
-import { toast } from './Toast';
 
 const ROLE_LABEL = { admin: 'Administrator', principal: 'Principal', dean: 'Dean', hod: 'Head of Department', faculty: 'Faculty / Staff', student: 'Student' };
 
@@ -16,7 +14,6 @@ export function Shell({ user, sections }) {
   const router = useRouter();
   const [hash, setHash] = useState('');
   const [navOpen, setNavOpen] = useState(false);
-  const [demoOpen, setDemoOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [dark, setDark] = useState(false);
   const [accentOpen, setAccentOpen] = useState(false);
@@ -32,7 +29,6 @@ export function Shell({ user, sections }) {
   }, []);
   useEffect(() => {
     const onDoc = (e) => {
-      if (!e.target.closest?.('.demo-switch')) setDemoOpen(false);
       if (!e.target.closest?.('.notif')) setNotifOpen(false);
       if (!e.target.closest?.('.accent-switch')) setAccentOpen(false);
     };
@@ -52,23 +48,9 @@ export function Shell({ user, sections }) {
   // Mark notifications read when the panel opens.
   const openNotif = (e) => {
     e.stopPropagation();
-    setDemoOpen(false);
     const next = !notifOpen;
     setNotifOpen(next);
     if (next) { ERP.notifications.markAllRead(user.empId); }
-  };
-
-  const onReset = async () => {
-    if (await confirmBox('Reset demo data?', 'All uploads, leave requests and changes will be wiped and the sample data restored.', { okLabel: 'Reset', tone: 'danger' })) {
-      await ERP.reset();
-      toast('Demo data restored');
-      setTimeout(() => location.reload(), 500);
-    }
-  };
-
-  const switchTo = (empId) => {
-    const u = ERP.auth.loginAs(empId);
-    router.push(ERP.auth.homeFor(u.role));
   };
 
   const pickAccent = (hex) => { applyAccent(hex); setAccent(hex); };
@@ -117,28 +99,11 @@ export function Shell({ user, sections }) {
             <h1>{active.title || active.label}</h1>
           </div>
           <div className="top-actions">
-            <div className="demo-switch">
-              <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setDemoOpen((v) => !v); setNotifOpen(false); }}>
-                <Icon name="swap" size={16} /><span className="hide-sm">Demo login</span>
-              </button>
-              {demoOpen && (
-                <div className="demo-menu">
-                  <div className="demo-head">Switch to a demo account</div>
-                  {ERP.DEMO.map((d) => (
-                    <button key={d.empId} className={d.empId === user.empId ? 'active' : ''} onClick={() => switchTo(d.empId)}>
-                      <span className={`role-dot role-${d.role}`} />
-                      <span><b>{d.label}</b><small>{d.username} / {d.password}</small></span>
-                    </button>
-                  ))}
-                  <button className="demo-reset" onClick={onReset}><Icon name="trash" size={14} /> Reset demo data</button>
-                </div>
-              )}
-            </div>
             <button className="icon-btn" aria-label="Toggle theme" onClick={() => setDark(toggleTheme() === 'dark')}>
               <Icon name={dark ? 'sun' : 'moon'} />
             </button>
             <div className="accent-switch">
-              <button className="icon-btn accent-dot" aria-label="Accent colour" onClick={(e) => { e.stopPropagation(); setAccentOpen((v) => !v); setDemoOpen(false); setNotifOpen(false); }}>
+              <button className="icon-btn accent-dot" aria-label="Accent colour" onClick={(e) => { e.stopPropagation(); setAccentOpen((v) => !v); setNotifOpen(false); }}>
                 <span className="accent-chip" />
               </button>
               {accentOpen && (

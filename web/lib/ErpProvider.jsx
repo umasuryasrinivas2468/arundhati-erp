@@ -33,7 +33,7 @@ export function ErpProvider({ children }) {
     return (
       <div className="boot">
         <div className="boot-mark" />
-        <p>Loading Arundhati ERP…</p>
+        <p>Loading CampusHub AIMS…</p>
       </div>
     );
   }

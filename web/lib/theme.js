@@ -18,11 +18,20 @@ export function toggleTheme() {
 
 // ---------- accent colour ----------
 const ACCENT_KEY = 'arundhati-accent';
-export const DEFAULT_ACCENT = '#059669';
-// Preset palette (mirrors the Campus-Hub picker).
+// Default accent — Slate Grey (matches the CampusHub AIMS look).
+export const DEFAULT_ACCENT = '#475569';
+// Preset palette — exact codes chosen by the user.
 export const ACCENTS = [
-  '#ef4444', '#059669', '#ec4899', '#be123c', '#7c3aed',
-  '#4338ca', '#2563eb', '#0d9488', '#d97706', '#334155',
+  '#475569', // Slate Grey (default)
+  '#D97706', // Amber Orange
+  '#0D9488', // Teal
+  '#2563EB', // Blue
+  '#4F46E5', // Indigo
+  '#7C3AED', // Purple
+  '#C2185B', // Rose Pink
+  '#E11D74', // Hot Pink
+  '#059669', // Emerald Green
+  '#E05252', // Coral Red
 ];
 
 export function getAccent() {
