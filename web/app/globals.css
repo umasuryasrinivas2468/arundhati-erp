@@ -504,7 +504,10 @@ button.ld-item, .ld-item[data-drill], .ld-item[data-leave] { cursor: pointer; }
     --lg-accent-ink: color-mix(in srgb, var(--primary) 82%, #000);
     --lg-accent-soft: color-mix(in srgb, var(--primary) 13%, #ffffff);
     min-height: 100vh; display: grid; place-items: center; padding: 48px 20px;
-    background: var(--lg-bg); color: var(--lg-text);
+    color: var(--lg-text);
+    background:
+      linear-gradient(color-mix(in srgb, var(--lg-bg) 82%, transparent), color-mix(in srgb, var(--lg-bg) 82%, transparent)),
+      url('/login-bg.jpg') center/cover no-repeat fixed;
   }
   :root[data-theme="dark"] .lg-page {
     --lg-bg: color-mix(in srgb, var(--primary) 10%, #0f151b);
