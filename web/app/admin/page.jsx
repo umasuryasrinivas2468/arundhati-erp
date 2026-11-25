@@ -576,7 +576,7 @@ function Staff({ me }) {
           { key: 'role', label: 'Role', render: (u) => rolePill(u.role) },
           { key: 'dept', label: 'Department', sort: (u) => u.dept || '', render: (u) => u.dept ? ERP.fmt.deptName(u.dept) : '—' },
           { key: 'designation', label: 'Designation' },
-          { key: 'username', label: 'Login (demo)', render: (u) => <span className="cred mono">{u.username}<i>/</i>{u.password}</span> },
+          { key: 'username', label: 'Login', render: (u) => <span className="cred mono">{u.username}<i>/</i>{u.password}</span> },
           { key: 'act', label: '', noSort: true, render: (u) => (
             <div className="acts"><button className="icon-btn" title="Edit" aria-label="Edit" onClick={() => openUserModal(u, me)}><Icon name="settings" size={15} /></button>
               <button className="icon-btn danger" disabled={u.empId === me.empId} title={u.empId === me.empId ? 'You cannot delete yourself' : 'Delete'} aria-label="Delete" onClick={() => removeUser(u)}><Icon name="trash" size={15} /></button></div>
@@ -707,7 +707,7 @@ function Students() {
             { key: 'year', label: 'Year', sort: (u) => u.year, render: (u) => <span className="badge badge-info">{YEAR_ROMAN[u.year] || u.year} MBBS</span> },
             { key: 'batch', label: 'Batch' },
             { key: 'att', label: 'Attendance', noSort: true, render: (u) => { const s = ERP.attendance.summarize(ERP.attendance.forEmp(u.empId)); return s.total ? <><StatusBadge code="P" /> <b>{s.percent}%</b> <small className="muted">· {s.total}d</small></> : <span className="muted small">—</span>; } },
-            { key: 'login', label: 'Login (demo)', render: (u) => <span className="cred mono">{u.rollNo}<i>/</i>{u.password}</span> },
+            { key: 'login', label: 'Login', render: (u) => <span className="cred mono">{u.rollNo}<i>/</i>{u.password}</span> },
             { key: 'act', label: '', noSort: true, render: (u) => <button className="btn btn-ghost btn-sm" onClick={() => openStudentModal(u)}>View</button> },
           ]}
         />

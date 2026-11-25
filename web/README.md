@@ -1,10 +1,10 @@
 # Arundhati ERP — Next.js front-end
 
 A React/Next.js (App Router) port of the original static HTML/JS app that lives in the
-repo root. **The backend contract is unchanged**: it talks to the same `/api/db`
-endpoint backed by the same Upstash Redis store, with the same env vars. Only the UI
-layer was rewritten — all business logic (auth, leave workflow, attendance rules) was
-carried over verbatim into `lib/erp.js`.
+repo root. **The backend contract is unchanged**: it talks to a `/api/db` endpoint
+backed by **Supabase Postgres** (the whole DB as one `jsonb` row), with the same shared
+store the static build uses. Only the UI layer was rewritten — all business logic (auth,
+leave workflow, attendance rules) was carried over verbatim into `lib/erp.js`.
 
 ## Run locally
 
@@ -14,9 +14,9 @@ npm install
 npm run dev        # http://localhost:3000
 ```
 
-Without Redis env vars the app automatically falls back to seeded **offline mode**
+Without Supabase env vars the app automatically falls back to seeded **offline mode**
 (browser `localStorage`), exactly like the original — so it runs with no backend for
-local development. Demo logins are shown on the sign-in page.
+local development.
 
 ## Build
 
@@ -29,9 +29,9 @@ npm run build && npm run start
 This folder is a self-contained Vercel project.
 
 1. In your Vercel project settings, set **Root Directory = `web`**.
-2. Keep the existing **Upstash / KV (Redis) integration** — it provisions
-   `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` (or `KV_*`), which
-   `app/api/db/route.js` reads unchanged.
+2. Add the Supabase env vars — `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
+   (from Supabase → Settings → API, or the Vercel → Supabase integration), which
+   `app/api/db/route.js` reads. Run `supabase-schema.sql` (repo root) once.
 3. Deploy. The old static build stays in the repo root and is unaffected until you
    switch the root directory.
 
@@ -39,7 +39,7 @@ This folder is a self-contained Vercel project.
 
 | Path | Role |
 |---|---|
-| `app/api/db/route.js` | The backend — GET/PUT the whole DB as one gzipped JSON blob in Redis. Ported 1:1 from the old `api/db.js`. |
+| `app/api/db/route.js` | The backend — GET/PUT the whole DB as one `jsonb` row in Supabase. |
 | `lib/erp.js` | Data + business-logic layer (ported from `js/data.js`). Async load, `subscribe()` for reactivity. |
 | `lib/seed/*` | Staff, student and attendance seed data (converted to ES modules). |
 | `lib/ErpProvider.jsx` | `<ErpProvider>`, `useErp()`, `useRequireRole()`. |

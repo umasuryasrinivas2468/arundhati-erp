@@ -2,7 +2,7 @@
   "name": "arundhati-erp-web",
   "version": "1.0.0",
   "private": true,
-  "description": "Arundhati ERP — Next.js front-end (same /api/db + Upstash Redis backend as the static build).",
+  "description": "Arundhati ERP — Next.js front-end (/api/db backed by Supabase Postgres).",
   "engines": {
     "node": ">=18"
   },
@@ -13,7 +13,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@upstash/redis": "^1.34.3",
     "next": "15.1.6",
     "qrcode-generator": "^1.4.4",
     "react": "19.0.0",

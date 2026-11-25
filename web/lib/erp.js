@@ -218,7 +218,6 @@ const auth = {
     try { sessionStorage.setItem(SESSION, u.empId); } catch (e) {}
     return u;
   },
-  loginAs(empId) { try { sessionStorage.setItem(SESSION, empId); } catch (e) {} return users.byEmp(empId); },
   current: () => { try { return users.byEmp(sessionStorage.getItem(SESSION)); } catch (e) { return undefined; } },
   logout() { try { sessionStorage.removeItem(SESSION); } catch (e) {} },
   homeFor: (role) => HOME[role] || '/',
@@ -404,21 +403,11 @@ const fmt = {
   MONTHS,
 };
 
-const DEMO = [
-  { role: 'admin', label: 'Admin', username: 'admin', password: 'admin123', empId: 'ADM001' },
-  { role: 'principal', label: 'Principal', username: 'c024', password: 'aims@123', empId: 'C024' },
-  { role: 'dean', label: 'Dean', username: '755', password: 'aims@123', empId: '755' },
-  { role: 'hod', label: 'HOD (Pathology)', username: '817', password: 'aims@123', empId: '817' },
-  { role: 'faculty', label: 'Faculty / Staff', username: '1140', password: 'aims@123', empId: '1140' },
-  { role: 'student', label: 'Student (MBBS)', username: '2501052001', password: '2501052001', empId: '2501052001' },
-];
-
 export const ERP = {
   INSTITUTION, DEPARTMENTS, LEAVE_TYPES, STATUS, LEAVE_STATE,
   util: { iso, today, parseISO, daysBetween, workingDays, isSunday, uid },
   db: () => db, save, reset, ready, isReady, subscribe,
   users, auth, attendance, leaves, announcements, notifications, fmt,
-  DEMO,
 };
 
 export default ERP;
