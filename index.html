@@ -3,97 +3,141 @@
 <script src="js/employees.js"></script><script src="js/attendance-seed.js"></script><script src="js/students.js"></script><script src="js/data.js"></script><script src="js/ui.js"></script>
 <script>(function () { var u = ERP.auth.current(); if (u) location.replace(ERP.auth.homeFor(u.role)); })();</script>
 <style>
-  body.login { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
+  body.login { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); overflow-x: hidden; }
   body.login > section { min-width: 0; }
+
+  /* ---------- brand panel ---------- */
   .lg-brand {
-    position: relative; overflow: hidden; color: #fff; padding: 48px 56px; display: flex; flex-direction: column; justify-content: space-between; gap: 32px;
-    background: radial-gradient(1200px 600px at -10% -20%, #14b8a6 0%, transparent 55%), linear-gradient(150deg, #0f766e 0%, #0e7490 55%, #134e4a 100%);
+    position: relative; overflow: hidden; color: #fff; padding: 48px 56px;
+    display: flex; flex-direction: column; justify-content: space-between; gap: 30px;
+    background: linear-gradient(150deg, #0f766e 0%, #0e7490 52%, #134e4a 100%);
+    isolation: isolate;
   }
-  .lg-brand::before, .lg-brand::after { content: ''; position: absolute; border-radius: 50%; background: rgba(255,255,255,.07); pointer-events: none; }
-  .lg-brand::before { width: 420px; height: 420px; right: -140px; bottom: -120px; }
-  .lg-brand::after { width: 220px; height: 220px; right: 80px; top: -90px; background: rgba(255,255,255,.05); }
+  /* animated aurora orbs */
+  .lg-brand::before, .lg-brand::after {
+    content: ''; position: absolute; border-radius: 50%; pointer-events: none; z-index: -1;
+    filter: blur(8px); opacity: .55; mix-blend-mode: screen;
+  }
+  .lg-brand::before {
+    width: 520px; height: 520px; right: -150px; bottom: -160px;
+    background: radial-gradient(circle at 30% 30%, #2dd4bf 0%, transparent 62%);
+    animation: float1 16s ease-in-out infinite;
+  }
+  .lg-brand::after {
+    width: 300px; height: 300px; left: -90px; top: -70px;
+    background: radial-gradient(circle at 50% 50%, #22d3ee 0%, transparent 60%);
+    animation: float2 20s ease-in-out infinite;
+  }
+  @keyframes float1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-40px,-30px) scale(1.12); } }
+  @keyframes float2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(50px,40px) scale(1.18); } }
+  /* subtle dot grid */
+  .lg-grid-bg { position: absolute; inset: 0; z-index: -1; opacity: .5;
+    background-image: radial-gradient(rgba(255,255,255,.14) 1px, transparent 1px); background-size: 26px 26px;
+    -webkit-mask-image: radial-gradient(130% 100% at 70% 10%, #000 20%, transparent 75%);
+            mask-image: radial-gradient(130% 100% at 70% 10%, #000 20%, transparent 75%); }
+
   .lg-logo { display: flex; align-items: center; gap: 14px; position: relative; z-index: 1; }
-  .lg-logo .mark { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.25); backdrop-filter: blur(6px); }
-  .lg-logo b { font-size: 20px; letter-spacing: -.01em; display: block; }
-  .lg-logo small { opacity: .8; font-size: 13px; }
-  .lg-pitch { position: relative; z-index: 1; max-width: 520px; }
-  .lg-pitch h1 { font-size: clamp(28px, 3.4vw, 40px); letter-spacing: -.025em; line-height: 1.12; }
-  .lg-pitch > p { opacity: .85; margin: 14px 0 28px; font-size: 15.5px; }
-  .lg-feats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
-  .lg-feats li { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; border-radius: 14px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); transition: background .2s, transform .2s; }
-  .lg-feats li:hover { background: rgba(255,255,255,.13); transform: translateX(4px); }
-  .lg-feats .fi { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: rgba(255,255,255,.16); flex: none; }
+  .lg-logo .mark { width: 50px; height: 50px; border-radius: 15px; display: grid; place-items: center;
+    background: rgba(255,255,255,.17); border: 1px solid rgba(255,255,255,.28); backdrop-filter: blur(6px);
+    box-shadow: 0 8px 22px rgba(0,0,0,.18); }
+  .lg-logo b { font-size: 21px; letter-spacing: -.015em; display: block; }
+  .lg-logo small { opacity: .82; font-size: 13px; }
+
+  .lg-pitch { position: relative; z-index: 1; max-width: 540px; }
+  .lg-badge { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700;
+    letter-spacing: .02em; padding: 5px 12px 5px 10px; border-radius: 999px; margin-bottom: 18px;
+    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); backdrop-filter: blur(4px); }
+  .lg-badge .dot { width: 7px; height: 7px; border-radius: 50%; background: #5eead4; box-shadow: 0 0 0 0 rgba(94,234,212,.7); animation: pulse 2.2s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(94,234,212,.6); } 70% { box-shadow: 0 0 0 7px rgba(94,234,212,0); } 100% { box-shadow: 0 0 0 0 rgba(94,234,212,0); } }
+  .lg-pitch h1 { font-size: clamp(28px, 3.4vw, 42px); letter-spacing: -.028em; line-height: 1.1; }
+  .lg-pitch > p { opacity: .86; margin: 14px 0 26px; font-size: 15.5px; max-width: 460px; }
+  .lg-feats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  .lg-feats li { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; border-radius: 14px;
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.13); backdrop-filter: blur(3px);
+    transition: background .2s, transform .2s, border-color .2s; opacity: 0; transform: translateY(10px);
+    animation: featIn .5s ease-out forwards; }
+  .lg-feats li:nth-child(1) { animation-delay: .08s; }
+  .lg-feats li:nth-child(2) { animation-delay: .18s; }
+  .lg-feats li:nth-child(3) { animation-delay: .28s; }
+  @keyframes featIn { to { opacity: 1; transform: translateY(0); } }
+  .lg-feats li:hover { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.26); transform: translateX(4px); }
+  .lg-feats .fi { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: rgba(255,255,255,.17); flex: none; }
   .lg-feats b { display: block; font-size: 14.5px; }
-  .lg-feats span { font-size: 13px; opacity: .8; }
+  .lg-feats span { font-size: 13px; opacity: .82; }
   .lg-flow { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .lg-flow em { font-style: normal; font-weight: 700; background: rgba(255,255,255,.18); padding: 0 7px; border-radius: 6px; font-size: 12px; }
-  .lg-foot { position: relative; z-index: 1; font-size: 12.5px; opacity: .75; }
 
-  .lg-side { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 32px; gap: 18px; }
+  /* live stats */
+  .lg-stats { position: relative; z-index: 1; display: flex; gap: 10px; }
+  .lg-stats .stat { flex: 1; padding: 13px 14px; border-radius: 14px; background: rgba(255,255,255,.09);
+    border: 1px solid rgba(255,255,255,.14); backdrop-filter: blur(3px); }
+  .lg-stats .stat b { display: block; font-size: 23px; letter-spacing: -.02em; line-height: 1; }
+  .lg-stats .stat span { font-size: 11.5px; opacity: .8; text-transform: uppercase; letter-spacing: .05em; }
+
+  .lg-foot { position: relative; z-index: 1; font-size: 12.5px; opacity: .72; display: flex; align-items: center; gap: 7px; }
+
+  /* ---------- form panel ---------- */
+  .lg-side { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 32px; gap: 16px; background: var(--bg); }
   .lg-theme { position: absolute; top: 18px; right: 18px; z-index: 5; }
-  .lg-card { width: min(440px, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 30px 28px; box-shadow: var(--shadow); animation: fade .35s ease-out; }
-  .lg-card h2 { font-size: 22px; letter-spacing: -.01em; }
+  .lg-card { width: min(440px, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: 22px;
+    padding: 32px 30px; box-shadow: var(--shadow); animation: cardIn .45s cubic-bezier(.2,.7,.3,1); }
+  @keyframes cardIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+  .lg-card h2 { font-size: 23px; letter-spacing: -.015em; }
   .lg-card > p { margin: 4px 0 22px; }
+  .field > span .req { color: var(--bad); margin-left: 2px; }
   .pw-wrap { position: relative; }
   .pw-wrap input { padding-right: 46px; }
   .pw-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: 0; background: none; color: var(--muted); cursor: pointer; width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; }
   .pw-toggle:hover { background: var(--surface-2); color: var(--text); }
+  .lg-caps { display: none; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--warn); }
+  .lg-caps.on { display: flex; }
   .lg-err { display: flex; gap: 8px; align-items: center; background: var(--bad-soft); color: var(--bad); border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 600; margin-bottom: 14px; }
   .lg-card.shake { animation: shake .45s cubic-bezier(.36,.07,.19,.97); }
   .lg-card.shake input { border-color: var(--bad); }
   @keyframes shake { 10%, 90% { transform: translateX(-2px); } 20%, 80% { transform: translateX(4px); } 30%, 50%, 70% { transform: translateX(-8px); } 40%, 60% { transform: translateX(8px); } }
-  .lg-submit { margin-top: 6px; padding: 12px 16px; font-size: 15px; }
+  .lg-remember { display: flex; align-items: center; gap: 8px; margin: -2px 0 16px; font-size: 13px; color: var(--muted); cursor: pointer; user-select: none; }
+  .lg-remember input { width: auto; margin: 0; accent-color: var(--primary); cursor: pointer; }
+  .lg-submit { margin-top: 2px; padding: 12px 16px; font-size: 15px; }
   .lg-submit .spin { width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  .lg-demo { width: min(440px, 100%); }
-  .lg-demo-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-  .lg-demo-head::before, .lg-demo-head::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-  .demo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
-  .demo-card {
-    display: flex; gap: 11px; align-items: center; text-align: left; font: inherit; color: var(--text); cursor: pointer;
-    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 11px 12px; position: relative; overflow: hidden;
-    transition: border-color .15s, transform .15s, box-shadow .15s;
-  }
-  .demo-card:hover { border-color: var(--rc); transform: translateY(-2px); box-shadow: var(--shadow); }
-  .demo-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-  .demo-card .rc { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; color: #fff; background: var(--rc); }
-  .demo-card b { display: block; font-size: 13.5px; }
-  .demo-card small { display: block; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .demo-card > span:last-child { min-width: 0; }
-  .demo-card.go { border-color: var(--rc); }
-  .demo-card.go::after { content: ''; position: absolute; left: 0; bottom: 0; height: 3px; background: var(--rc); animation: grow .7s ease-out forwards; }
-  @keyframes grow { from { width: 0; } to { width: 100%; } }
   .lg-note { width: min(440px, 100%); display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; color: var(--muted); background: var(--surface-2); border-radius: 12px; padding: 10px 12px; }
   .lg-note .icon { color: var(--primary); margin-top: 1px; }
 
+  @media (prefers-reduced-motion: reduce) {
+    .lg-brand::before, .lg-brand::after, .lg-badge .dot, .lg-feats li, .lg-card { animation: none !important; }
+    .lg-feats li { opacity: 1; transform: none; }
+  }
   @media (max-width: 900px) {
     body.login { grid-template-columns: 1fr; }
-    .lg-brand { padding: 28px 16px 26px; gap: 20px; }
+    .lg-brand { padding: 30px 18px 28px; gap: 20px; }
     .lg-pitch > p { margin: 10px 0 18px; font-size: 14.5px; }
     .lg-feats { gap: 8px; }
     .lg-feats li { padding: 10px 12px; }
+    .lg-stats .stat b { font-size: 20px; }
     .lg-foot { display: none; }
     .lg-side { padding: 24px 16px 40px; justify-content: flex-start; }
-    .lg-card { padding: 24px 18px; }
+    .lg-card { padding: 26px 20px; }
     .lg-theme { position: absolute; top: 22px; right: 16px; z-index: 5; background: rgba(255,255,255,.16); color: #fff; border-color: rgba(255,255,255,.3); }
     .lg-theme:hover { background: rgba(255,255,255,.26); }
   }
-  @media (max-width: 420px) { .demo-grid { grid-template-columns: 1fr 1fr; } .demo-card { padding: 10px; gap: 8px; } .demo-card .rc { width: 30px; height: 30px; } }
 </style>
 </head><body class="login">
   <button class="icon-btn lg-theme" id="lg-theme" aria-label="Toggle theme"></button>
   <section class="lg-brand">
+    <span class="lg-grid-bg" aria-hidden="true"></span>
     <div class="lg-logo">
       <span class="mark" id="lg-mark"></span>
       <span><b>Arundhati ERP</b><small id="lg-inst"></small></span>
     </div>
     <div class="lg-pitch">
+      <span class="lg-badge"><span class="dot"></span>Attendance &amp; Leave management</span>
       <h1>Staff attendance &amp; leave, in one place.</h1>
       <p>A lightweight ERP for faculty, departments and administration of the medical college and teaching hospital.</p>
       <ul class="lg-feats" id="lg-feats"></ul>
     </div>
-    <div class="lg-foot">Demo build · all data is stored locally in this browser.</div>
+    <div class="lg-stats" id="lg-stats"></div>
+    <div class="lg-foot" id="lg-foot"></div>
   </section>
 
   <section class="lg-side">
@@ -101,18 +145,15 @@
       <h2>Welcome back</h2>
       <p class="muted">Sign in with your ERP credentials.</p>
       <div class="lg-err" id="lg-err" hidden></div>
-      <label class="field"><span>Username</span><input id="lg-user" name="username" autocomplete="username" placeholder="e.g. admin" required></label>
-      <label class="field"><span>Password</span>
+      <label class="field"><span>Username<span class="req">*</span></span><input id="lg-user" name="username" autocomplete="username" placeholder="e.g. admin" required></label>
+      <label class="field"><span>Password<span class="req">*</span></span>
         <div class="pw-wrap"><input id="lg-pass" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required>
           <button type="button" class="pw-toggle" id="lg-eye" aria-label="Show password"></button></div>
+        <span class="lg-caps" id="lg-caps"></span>
       </label>
+      <label class="lg-remember"><input type="checkbox" id="lg-remember"> Remember my username</label>
       <button class="btn btn-primary btn-block lg-submit" id="lg-submit" type="submit">Sign in</button>
     </form>
-
-    <div class="lg-demo">
-      <div class="lg-demo-head">Demo logins · one click</div>
-      <div class="demo-grid" id="lg-demo"></div>
-    </div>
     <p class="lg-note" id="lg-note"></p>
   </section>
 <script src="js/login.js"></script>

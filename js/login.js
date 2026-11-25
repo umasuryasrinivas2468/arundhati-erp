@@ -18,7 +18,17 @@
     ['chart', 'Role dashboards', 'Tailored views for Admin, Principal, Dean, HOD and Faculty.'],
   ];
   $('#lg-feats').innerHTML = feats.map(([ic, t, d]) => `<li><span class="fi">${icon(ic, 20)}</span><div><b>${t}</b><span>${d}</span></div></li>`).join('');
-  $('#lg-note').innerHTML = `${icon('alert', 16)}<span>Demo build: all data is stored locally in your browser (localStorage). Nothing is sent to a server — clearing site data resets everything.</span>`;
+
+  // Live institution stats from the loaded ERP data.
+  const stats = [
+    [ERP.users.staff().length, 'Staff'],
+    [ERP.users.students().length, 'Students'],
+    [ERP.DEPARTMENTS.length, 'Departments'],
+  ];
+  $('#lg-stats').innerHTML = stats.map(([n, l]) => `<div class="stat"><b>${n}</b><span>${l}</span></div>`).join('');
+
+  $('#lg-foot').innerHTML = `${icon('id', 15)}<span>Secure sign-in · your session stays on this device.</span>`;
+  $('#lg-note').innerHTML = `${icon('alert', 16)}<span>Staff sign in with their employee code and students with their roll number. Trouble signing in? Contact the ERP administrator.</span>`;
 
   // ---------- theme ----------
   const themeBtn = $('#lg-theme');
@@ -29,6 +39,7 @@
 
   // ---------- form ----------
   const form = $('#lg-form'), user = $('#lg-user'), pass = $('#lg-pass'), eye = $('#lg-eye'), err = $('#lg-err'), submit = $('#lg-submit');
+  const caps = $('#lg-caps'), remember = $('#lg-remember');
   eye.innerHTML = EYE;
   eye.onclick = () => {
     const show = pass.type === 'password';
@@ -37,6 +48,30 @@
     eye.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
     pass.focus();
   };
+
+  // ---------- caps-lock hint ----------
+  const REMEMBER_KEY = 'arundhati-erp-remember-user';
+  const capsCheck = (e) => {
+    const on = e.getModifierState && e.getModifierState('CapsLock');
+    caps.classList.toggle('on', !!on);
+    if (on) caps.innerHTML = `${icon('alert', 14)}<span>Caps Lock is on</span>`;
+  };
+  pass.addEventListener('keydown', capsCheck);
+  pass.addEventListener('keyup', capsCheck);
+  pass.addEventListener('blur', () => caps.classList.remove('on'));
+
+  // ---------- remember username ----------
+  try {
+    const saved = localStorage.getItem(REMEMBER_KEY);
+    if (saved) { user.value = saved; remember.checked = true; }
+  } catch (e) {}
+  function syncRemember() {
+    try {
+      if (remember.checked && user.value.trim()) localStorage.setItem(REMEMBER_KEY, user.value.trim());
+      else localStorage.removeItem(REMEMBER_KEY);
+    } catch (e) {}
+  }
+  remember.addEventListener('change', syncRemember);
 
   let busy = false;
   function fail(msg) {
@@ -61,35 +96,13 @@
     // Small delay so the transition is perceptible.
     setTimeout(() => {
       const u = ERP.auth.login(username, password);
-      if (!u) { after && after(false); return fail('Invalid username or password. Try one of the demo logins below.'); }
+      if (!u) { after && after(false); return fail('Invalid username or password. Please check your credentials and try again.'); }
+      if (remember.checked) { try { localStorage.setItem(REMEMBER_KEY, user.value.trim()); } catch (e) {} }
       submit.innerHTML = `${icon('check', 16)} Welcome, ${esc(u.name.split(' ').slice(0, 2).join(' '))}`;
       setTimeout(() => location.href = ERP.auth.homeFor(u.role), 380);
     }, 420);
   }
   form.addEventListener('submit', (e) => { e.preventDefault(); attempt(user.value, pass.value); });
-
-  // ---------- demo cards ----------
-  const ROLE_ICON = { admin: 'settings', principal: 'building', dean: 'chart', hod: 'users', faculty: 'user', student: 'cap' };
-  const grid = $('#lg-demo');
-  grid.innerHTML = ERP.DEMO.map((d, i) => `<button type="button" class="demo-card role-${d.role}" data-i="${i}" title="Sign in as ${esc(d.label)}">
-      <span class="rc">${icon(ROLE_ICON[d.role] || 'user', 18)}</span>
-      <span><b>${esc(d.label)}</b><small>${esc(d.username)} / ${esc(d.password)}</small></span></button>`).join('');
-  grid.addEventListener('click', (e) => {
-    const card = e.target.closest('.demo-card'); if (!card || busy) return;
-    const d = ERP.DEMO[+card.dataset.i];
-    err.hidden = true;
-    grid.querySelectorAll('.demo-card').forEach((c) => c.classList.remove('go'));
-    card.classList.add('go');
-    // Type the credentials in quickly, then sign in.
-    user.value = ''; pass.value = ''; pass.type = 'password'; eye.innerHTML = EYE;
-    const steps = [];
-    for (let i = 1; i <= d.username.length; i++) steps.push(() => { user.value = d.username.slice(0, i); });
-    for (let i = 1; i <= d.password.length; i++) steps.push(() => { pass.value = d.password.slice(0, i); });
-    const per = Math.max(12, Math.floor(320 / steps.length));
-    busy = true;
-    steps.forEach((fn, i) => setTimeout(fn, i * per));
-    setTimeout(() => { busy = false; attempt(d.username, d.password, () => card.classList.remove('go')); }, steps.length * per + 60);
-  });
 
   setTimeout(() => user.focus(), 50);
 })();

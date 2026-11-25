@@ -5,19 +5,26 @@ Staff attendance & leave ERP for Arundhati Medical College & Hospital. Static HT
 **Run:** open `index.html` in Chrome/Edge (or `npx serve .`). Data is stored in the browser's localStorage; use *Demo login → Reset demo data* to restore the sample data.
 
 **Shared server store:** the app reads and writes one shared database through `/api/db`
-(a Vercel function backed by **Upstash Redis**), so every user sees the same data and
+(a Vercel function backed by **Supabase** Postgres), so every user sees the same data and
 admin uploads/leave approvals persist for everyone. When no server is reachable (opened
 as a `file://` or via `npx serve`), it transparently falls back to browser localStorage,
-so local demos still work offline. The whole DB is stored as one gzipped JSON value
-(`arundhati-erp:db:v3`); writes are last-write-wins, and because navigation reloads each
-page, everyone converges on the latest data.
+so local demos still work offline. The whole DB is stored as one JSON value in a single
+`jsonb` row (`public.erp_state`, id `arundhati-erp:v3`); writes are last-write-wins, and
+because navigation reloads each page, everyone converges on the latest data. The function
+talks to Supabase through its REST API, so there is **no npm dependency** to install.
+
+**Set up the database (Supabase):**
+1. Create a project at [supabase.com](https://supabase.com) (or add the Supabase
+   integration in **Vercel → Integrations**, which provisions one and injects the env vars).
+2. In **Supabase → SQL Editor**, run `supabase-schema.sql` (creates the `erp_state` table).
+3. Set two env vars (auto-injected by the Vercel integration, or copy from
+   **Supabase → Settings → API**):
+   - `SUPABASE_URL` — the project URL, e.g. `https://xxxx.supabase.co`
+   - `SUPABASE_SERVICE_ROLE_KEY` — the **service_role** secret key (not the anon key; keep it server-only).
 
 **Deploy (Vercel):**
 1. `vercel link` (create/select the project).
-2. Provision the store so env vars are injected: `vercel integration add upstash` (or
-   Vercel dashboard → Storage → **Upstash Redis / KV** → connect to the project). This
-   sets `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` (the function also accepts
-   `KV_*`).
+2. Add the two env vars above (`vercel env add …`, or the Vercel dashboard / Supabase integration).
 3. `vercel --prod`.
 
 No build step — static files are served as-is and `api/db.js` is built as a function.

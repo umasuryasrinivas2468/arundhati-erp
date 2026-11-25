@@ -247,7 +247,6 @@
       sessionStorage.setItem(SESSION, u.empId);
       return u;
     },
-    loginAs(empId) { sessionStorage.setItem(SESSION, empId); return users.byEmp(empId); },
     current: () => users.byEmp(sessionStorage.getItem(SESSION)),
     logout() { sessionStorage.removeItem(SESSION); location.href = 'index.html'; },
     homeFor: (role) => ({ admin: 'admin.html', principal: 'principal.html', dean: 'dean.html', hod: 'hod.html', faculty: 'faculty.html', student: 'student.html' }[role]),
@@ -459,14 +458,5 @@
     util: { iso, today, parseISO, daysBetween, workingDays, isSunday, uid },
     db: () => db, save, reset,
     users, auth, attendance, leaves, announcements, notifications, fmt,
-    // Demo accounts shown on the login page and in the role switcher on every page.
-    DEMO: [
-      { role: 'admin', label: 'Admin', username: 'admin', password: 'admin123', empId: 'ADM001' },
-      { role: 'principal', label: 'Principal', username: 'c024', password: 'aims@123', empId: 'C024' },
-      { role: 'dean', label: 'Dean', username: '755', password: 'aims@123', empId: '755' },
-      { role: 'hod', label: 'HOD (Pathology)', username: '817', password: 'aims@123', empId: '817' },
-      { role: 'faculty', label: 'Faculty / Staff', username: '1140', password: 'aims@123', empId: '1140' },
-      { role: 'student', label: 'Student (MBBS)', username: '2501052001', password: '2501052001', empId: '2501052001' },
-    ],
   };
 })();
