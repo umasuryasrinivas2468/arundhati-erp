@@ -28,7 +28,6 @@
   $('#lg-stats').innerHTML = stats.map(([n, l]) => `<div class="stat"><b>${n}</b><span>${l}</span></div>`).join('');
 
   $('#lg-foot').innerHTML = `${icon('id', 15)}<span>Secure sign-in · your session stays on this device.</span>`;
-  $('#lg-note').innerHTML = `${icon('alert', 16)}<span>Staff sign in with their employee code and students with their roll number. Trouble signing in? Contact the ERP administrator.</span>`;
 
   // ---------- theme ----------
   const themeBtn = $('#lg-theme');
