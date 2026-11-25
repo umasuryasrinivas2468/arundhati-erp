@@ -1,45 +1,35 @@
 # Arundhati ERP
 
-Staff attendance & leave ERP for Arundhati Medical College & Hospital. Static HTML/JS — no install, no server.
+Staff attendance & leave ERP for Arundhati Medical College & Hospital. Static HTML/JS front-end plus one dependency-free Node server (`server.js`).
 
-**Run:** open `index.html` in Chrome/Edge (or `npx serve .`). Data is stored in the browser's localStorage; use *Demo login → Reset demo data* to restore the sample data.
+**Run:** open `index.html` in Chrome/Edge (or `npx serve .`). Data is stored in the browser's localStorage; clear site data to restore the sample data.
 
-**Shared server store:** the app reads and writes one shared database through `/api/db`
-(a Vercel function backed by **Supabase** Postgres), so every user sees the same data and
-admin uploads/leave approvals persist for everyone. When no server is reachable (opened
-as a `file://` or via `npx serve`), it transparently falls back to browser localStorage,
-so local demos still work offline. The whole DB is stored as one JSON value in a single
-`jsonb` row (`public.erp_state`, id `arundhati-erp:v3`); writes are last-write-wins, and
-because navigation reloads each page, everyone converges on the latest data. The function
-talks to Supabase through its REST API, so there is **no npm dependency** to install.
+**Server (self-hosted, EC2):** `node server.js` (Node ≥ 22.13, no npm install) serves the app
+and keeps all data in a local SQLite file (`DB_PATH`, default `./data/erp.db`). Without the
+server (opened as a file / `npx serve`) the app falls back to browser localStorage.
 
-**Set up the database (Supabase):**
-1. Create a project at [supabase.com](https://supabase.com) (or add the Supabase
-   integration in **Vercel → Integrations**, which provisions one and injects the env vars).
-2. In **Supabase → SQL Editor**, run `supabase-schema.sql` (creates the `erp_state` table).
-3. Set two env vars (auto-injected by the Vercel integration, or copy from
-   **Supabase → Settings → API**):
-   - `SUPABASE_URL` — the project URL, e.g. `https://xxxx.supabase.co`
-   - `SUPABASE_SERVICE_ROLE_KEY` — the **service_role** secret key (not the anon key; keep it server-only).
+- **Login is checked on the server.** Passwords are scrypt-hashed in their own table and never
+  sent to browsers; sessions are HttpOnly cookies (12 h; a restart signs everyone out).
+  10 failed logins per IP → 15-minute lockout.
+- **Reads are per role** (`view()` in `server.js`): admin/principal/dean see everything, a HOD sees
+  their department, staff and students see only their own records. Other people's contact
+  details and the student roster are hidden from non-leaders.
+- **Writes are single operations** (`POST /api/op`) run on the server through the shared rules in
+  `js/core.js` (leave workflow, quotas, uploads, users, announcements) with permission checks —
+  e.g. only the HOD/Principal a leave is waiting on can act on it; only admins upload attendance
+  or manage users. There is no "save the whole database" endpoint.
+- The roster/attendance seed files are served as empty stubs, so the data isn't public.
 
-**Deploy (Vercel):**
-1. `vercel link` (create/select the project).
-2. Add the two env vars above (`vercel env add …`, or the Vercel dashboard / Supabase integration).
-3. `vercel --prod`.
+**Load data:** `DB_PATH=/path/erp.db node server.js import export.json` (a full ERP JSON blob —
+`{db}`, a Supabase `{data}` row or the raw object; plaintext passwords in it are hashed).
 
-No build step — static files are served as-is and `api/db.js` is built as a function.
-`vercel.json` pins `framework: null` and keeps `.html` URLs. For local dev with the
-server: `vercel env pull .env.local` then `vercel dev`.
+**Deploy:** `deploy/setup.sh` turns a fresh Ubuntu 24.04 EC2 into the server: Node 22, Caddy
+(automatic HTTPS for `DOMAIN`), a systemd service, nightly SQLite backups (14 days local,
+optional S3 via `BACKUP_BUCKET`). Update later with
+`cd /opt/arundhati-erp && git pull && systemctl restart arundhati-erp`.
 
-**Preloaded attendance:** October 2026 (01–26 Oct) and November 2026 (01–10 Nov) attendance
-is seeded from the biometric *Basic Work Duration* reports (`js/attendance-seed.js`, 4,821
-records) into the store on first load, and shows up under Admin → Upload history as two
-imports (one per monthly report). Bumping the DB `version` in `js/data.js` forces a re-seed
-and **overwrites** the store, so only do that for a deliberate reset.
-
-**Security note:** `/api/db` is an open same-origin endpoint (no server-side auth — login
-is still client-side), so anyone who can reach the site can read or overwrite the DB. Fine
-for an internal/trusted deployment; a public one needs real auth + per-record endpoints.
+**Check:** `node test/server.check.js` — spins up the server on a fixture DB and asserts the
+permission rules.
 
 Staff logins are seeded from `js/employees.js`, generated from *EDITED EMPLOYEE LIST 12.xls* (158 staff, 42 departments). Each record carries a `leaveCategory` (doctor / teaching / non-teaching) that drives leave entitlement. **Username = employee code** (case-insensitive, e.g. `c024`, `1140`), **default password `aims@123`** — staff can change it under Profile.
 
@@ -70,7 +60,7 @@ Attendance** screen — the roll number goes in the *Employee ID* column.
 
 **Leave workflow:** Faculty applies → HOD recommends/rejects → Principal approves/rejects. HOD and Dean leave — and staff in departments without a HOD (Admin, Housekeeping, Accounts, OT staff, …) — goes straight to the Principal.
 
-**Leave entitlement** (per `LEAVE_CATEGORY_QUOTAS` in `js/data.js`, from the leave-policy note): Casual Leave (CL) — Doctors 24/yr (2/month), Teaching & Non-teaching 12/yr. Academic Leave (AL) — Doctors 8/yr. On Duty (OD) 10/yr and Loss of Pay (LOP, uncapped) for all. Entitlement is resolved per employee from their `leaveCategory`.
+**Leave entitlement** (per `LEAVE_CATEGORY_QUOTAS` in `js/core.js`, from the leave-policy note): Casual Leave (CL) — Doctors 24/yr (2/month), Teaching & Non-teaching 12/yr. Academic Leave (AL) — Doctors 8/yr. On Duty (OD) 10/yr and Loss of Pay (LOP, uncapped) for all. Entitlement is resolved per employee from their `leaveCategory`.
 
 **Biometric late-punch policy** (shown as an announcement): >15 min late = a late punch; 1st–2nd late punches/month = no loss of pay; 3rd–5th = half-day LOP each; beyond 5th = one full day LOP each. Displayed only — attendance is imported from the biometric reports, not computed from punch times.
 

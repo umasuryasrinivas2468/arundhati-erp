@@ -2,8 +2,8 @@
   "name": "arundhati-erp",
   "version": "1.0.0",
   "private": true,
-  "description": "Staff attendance & leave ERP for Arundhati Medical College & Hospital (static front-end + Vercel function + Supabase shared store).",
+  "description": "Staff attendance & leave ERP for Arundhati Medical College & Hospital (static front-end + self-hosted Node server with SQLite).",
   "engines": {
-    "node": ">=18"
+    "node": ">=22.13"
   }
 }
