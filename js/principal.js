@@ -71,9 +71,9 @@
     user: me,
     sections: [
       { id: 'dashboard', label: 'Dashboard', title: 'Institution Overview', icon: 'home', render: dashboard },
-      { id: 'approvals', label: 'Leave Approvals', title: 'Final Leave Approvals', icon: 'check', badge: pendingCount, render: (el) => L.approvalQueue(el, me) },
+      { id: 'approvals', label: 'Leave Approvals', title: 'Final Leave Approvals', icon: 'check', render: ERP.ui.leaveSoon },
       { id: 'reports', label: 'Attendance Reports', icon: 'chart', render: (el) => L.attendanceReport(el, { key: 'pr-att', deptSelectable: true }) },
-      { id: 'leaves', label: 'All Leaves', icon: 'file', render: (el) => L.leaveTable(el, { key: 'pr-leaves', source: () => ERP.leaves.all(), exportName: 'all_leaves' }) },
+      { id: 'leaves', label: 'All Leaves', icon: 'file', render: ERP.ui.leaveSoon },
       { id: 'directory', label: 'Staff Directory', icon: 'users', render: (el) => L.directory(el, { key: 'pr-dir' }) },
       { id: 'announcements', label: 'Announcements', icon: 'megaphone', render: (el) => L.announcements(el, me, { canPost: true }) },
     ],

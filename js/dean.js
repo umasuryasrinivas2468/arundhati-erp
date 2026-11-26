@@ -74,7 +74,7 @@
           const box = document.createElement('div'); box.className = 'section'; el.appendChild(box);
           L.leaveTable(box, { key: 'dn-leaves', source: () => ERP.leaves.all(), exportName: 'leave_overview' });
         } },
-      { id: 'myleave', label: 'My Leave', icon: 'leave', render: (el) => L.myLeave(el, me) },
+      { id: 'myleave', label: 'My Leave', icon: 'leave', render: ERP.ui.leaveSoon },
       { id: 'announcements', label: 'Announcements', icon: 'megaphone', render: (el) => L.announcements(el, me, { canPost: true }) },
     ],
   });

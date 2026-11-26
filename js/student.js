@@ -169,20 +169,7 @@
       </div>`;
   }
 
-  // ================= COMING SOON =================
-  /* Reusable "feature on the way" placeholder. */
-  function comingSoon(el, { iconName, title, lead, note, feats }) {
-    el.innerHTML = `
-      <div class="card soon">
-        <div class="soon-ic">${icon(iconName, 40)}</div>
-        <div class="soon-badge"><i></i> Coming soon</div>
-        <h2>${esc(title)}</h2>
-        <p>${lead}</p>
-        <div class="soon-feats">${feats.map((f) => `<div class="soon-feat"><span class="sf-ic">${icon(f[0], 17)}</span><div><b>${esc(f[1])}</b><small>${esc(f[2])}</small></div></div>`).join('')}</div>
-        ${note ? `<p class="muted small" style="margin-top:26px">${esc(note)}</p>` : ''}
-      </div>`;
-  }
-
+  const { comingSoon } = ui;
   function renderAttendance(el) {
     comingSoon(el, {
       iconName: 'calendar',
