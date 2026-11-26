@@ -510,11 +510,12 @@
     });
     form.onsubmit = (e) => {
       e.preventDefault(); clear();
+      const cur = ERP.users.byEmp(me.empId);
+      if (f.cur.value !== cur.password) return fail('Current password is incorrect', 'cur');
       if (f.next.value.length < 6) return fail('New password must be at least 6 characters', 'next');
       if (f.next.value === f.cur.value) return fail('New password must differ from the current one', 'next');
       if (f.next.value !== f.confirm.value) return fail('Passwords do not match', 'confirm');
-      const pwErr = ERP.auth.changePassword(f.cur.value, f.next.value);
-      if (pwErr) return fail(pwErr, /current/i.test(pwErr) ? 'cur' : 'next');
+      ERP.users.update(me.empId, { password: f.next.value });
       form.reset(); $('.pw-strength div', form).style.width = '0';
       ui.toast('Password updated successfully');
     };

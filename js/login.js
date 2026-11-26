@@ -20,10 +20,9 @@
   $('#lg-feats').innerHTML = feats.map(([ic, t, d]) => `<li><span class="fi">${icon(ic, 20)}</span><div><b>${t}</b><span>${d}</span></div></li>`).join('');
 
   // Live institution stats from the loaded ERP data.
-  const ps = ERP.publicStats(); // set by the server when signed out (the page has no data yet)
   const stats = [
-    [ps ? ps.staff : ERP.users.staff().length, 'Staff'],
-    [ps ? ps.students : ERP.users.students().length, 'Students'],
+    [ERP.users.staff().length, 'Staff'],
+    [ERP.users.students().length, 'Students'],
     [ERP.DEPARTMENTS.length, 'Departments'],
   ];
   $('#lg-stats').innerHTML = stats.map(([n, l]) => `<div class="stat"><b>${n}</b><span>${l}</span></div>`).join('');
