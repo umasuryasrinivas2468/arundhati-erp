@@ -67,11 +67,11 @@
     user: me,
     sections: [
       { id: 'dashboard', label: 'Dashboard', title: `${F.deptName(me.dept)} · Dashboard`, icon: 'home', render: dashboard },
-      { id: 'approvals', label: 'Leave Approvals', icon: 'check', badge: pendingCount, render: (el) => L.approvalQueue(el, me) },
+      { id: 'approvals', label: 'Leave Approvals', icon: 'check', render: ERP.ui.leaveSoon },
       { id: 'attendance', label: 'Department Attendance', icon: 'calendar', render: (el) => L.attendanceReport(el, { key: 'hod-att', fixedDept: me.dept }) },
       { id: 'history', label: 'Leave History', icon: 'file', title: 'Department Leave History',
         render: (el) => L.leaveTable(el, { key: 'hod-hist', source: () => ERP.leaves.forDept(me.dept), showDept: false, deptFilter: false, exportName: `leaves_${me.dept}` }) },
-      { id: 'myleave', label: 'My Leave', icon: 'leave', render: (el) => L.myLeave(el, me) },
+      { id: 'myleave', label: 'My Leave', icon: 'leave', render: ERP.ui.leaveSoon },
       { id: 'announcements', label: 'Announcements', icon: 'megaphone', render: (el) => L.announcements(el, me) },
     ],
   });
