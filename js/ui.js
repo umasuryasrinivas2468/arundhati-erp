@@ -287,5 +287,33 @@
   const go = (id) => { if (location.hash.slice(1) === id) route(); else location.hash = id; };
   const refresh = () => route();
 
-  window.ERP.ui = { $, $$, esc, icon, toast, modal, confirm: confirmBox, avatar, statusBadge, leaveBadge, stat, empty, meter, table, bars, donut, downloadXlsx, shell, go, refresh, syncBadges, applyTheme, ROLE_LABEL };
+  // ================= COMING SOON =================
+  /* Reusable "feature on the way" placeholder. */
+  function comingSoon(el, { iconName, title, lead, note, feats }) {
+    el.innerHTML = `
+      <div class="card soon">
+        <div class="soon-ic">${icon(iconName, 40)}</div>
+        <div class="soon-badge"><i></i> Coming soon</div>
+        <h2>${esc(title)}</h2>
+        <p>${lead}</p>
+        <div class="soon-feats">${feats.map((f) => `<div class="soon-feat"><span class="sf-ic">${icon(f[0], 17)}</span><div><b>${esc(f[1])}</b><small>${esc(f[2])}</small></div></div>`).join('')}</div>
+        ${note ? `<p class="muted small" style="margin-top:26px">${esc(note)}</p>` : ''}
+      </div>`;
+  }
+
+  // ponytail: leave module paused on prod; swap back to the real renderers when it relaunches.
+  const leaveSoon = (el) => comingSoon(el, {
+    iconName: 'leave',
+    title: 'Online leave, coming soon',
+    lead: 'Apply for leave, track approvals and see your balance right here. Until it goes live, please apply for leave the usual way through your HOD / office.',
+    note: 'The leave module is being finalised and will be switched on shortly.',
+    feats: [
+      ['plus', 'Apply online', 'CL, AL, OD and LOP in a few clicks, half days included.'],
+      ['check', 'Track approvals', 'See where each request is, from HOD to Principal.'],
+      ['leave', 'Live balance', 'Your remaining leave for the year at a glance.'],
+      ['bell', 'Notifications', 'Get notified the moment a request is approved.'],
+    ],
+  });
+
+  window.ERP.ui = { $, $$, esc, icon, toast, modal, confirm: confirmBox, avatar, statusBadge, leaveBadge, stat, empty, meter, table, bars, donut, downloadXlsx, shell, go, refresh, syncBadges, applyTheme, ROLE_LABEL, comingSoon, leaveSoon };
 })();
