@@ -9,9 +9,9 @@ and keeps all data in a local SQLite file (`DB_PATH`, default `./data/erp.db`). 
 server (opened as a file / `npx serve`) the app falls back to browser localStorage.
 
 - **Login is checked on the server.** Passwords are scrypt-hashed in their own table and never
-  sent to browsers; sessions are HttpOnly cookies (12 h; a restart signs everyone out).
+  sent to browsers; sessions are signed HttpOnly cookies (12 h; set `SESSION_SECRET`, or a restart signs everyone out).
   10 failed logins per IP → 15-minute lockout.
-- **Reads are per role** (`view()` in `server.js`): admin/principal/dean see everything, a HOD sees
+- **Reads are per role** (`view()` in `lib/api.js`): admin/principal/dean see everything, a HOD sees
   their department, staff and students see only their own records. Other people's contact
   details and the student roster are hidden from non-leaders.
 - **Writes are single operations** (`POST /api/op`) run on the server through the shared rules in
@@ -28,8 +28,15 @@ server (opened as a file / `npx serve`) the app falls back to browser localStora
 optional S3 via `BACKUP_BUCKET`). Update later with
 `cd /opt/arundhati-erp && git pull && systemctl restart arundhati-erp`.
 
-**Check:** `node test/server.check.js` — spins up the server on a fixture DB and asserts the
-permission rules.
+**Deploy on Vercel + Supabase instead:** the same API runs as `api/handler.js` (routes in
+`vercel.json` — only the HTML pages, `js/`, `css/`, `assets/` and the API are reachable).
+1. Run `supabase-schema.sql` once in Supabase → SQL Editor (adds `erp_passwords`).
+2. Vercel env vars: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET` (`openssl rand -hex 32`).
+3. Deploy. Everyone signs in again; plaintext passwords still in the stored blob work once and
+   are moved into `erp_passwords` on that first sign-in.
+
+**Check:** `node test/server.check.js` (EC2 server, SQLite) and `node test/vercel.check.js
+[blob.json]` (Vercel handler against a fake Supabase) assert the permission rules.
 
 Staff logins are seeded from `js/employees.js`, generated from *EDITED EMPLOYEE LIST 12.xls* (158 staff, 42 departments). Each record carries a `leaveCategory` (doctor / teaching / non-teaching) that drives leave entitlement. **Username = employee code** (case-insensitive, e.g. `c024`, `1140`), **default password `aims@123`** — staff can change it under Profile.
 
