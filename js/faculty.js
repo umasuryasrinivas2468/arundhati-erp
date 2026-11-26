@@ -527,8 +527,8 @@
     sections: [
       { id: 'dashboard', label: 'Dashboard', icon: 'home', render: renderDashboard },
       { id: 'attendance', label: 'My Attendance', icon: 'calendar', render: renderAttendance },
-      { id: 'apply', label: 'Apply Leave', icon: 'plus', render: renderApply },
-      { id: 'leaves', label: 'My Leaves', icon: 'leave', render: renderLeaves, badge: pendingCount },
+      { id: 'apply', label: 'Apply Leave', icon: 'plus', render: ui.leaveSoon },
+      { id: 'leaves', label: 'My Leaves', icon: 'leave', render: ui.leaveSoon },
       { id: 'profile', label: 'Profile', icon: 'user', render: renderProfile },
     ],
   });
