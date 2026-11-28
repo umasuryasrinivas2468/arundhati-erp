@@ -58,6 +58,7 @@
   const icon = (name, size = 18) => `<svg class="icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
 
   const ROLE_LABEL = { admin: 'Administrator', principal: 'Principal', dean: 'Dean', hod: 'Head of Department', faculty: 'Faculty / Staff', student: 'Student' };
+  const PORTAL_LABEL = { admin: 'Admin Portal', principal: 'Principal Portal', dean: 'Dean Portal', hod: 'HOD Portal', faculty: 'Faculty Portal', student: 'Student Portal' };
 
   // ---------- theme ----------
   const THEME_KEY = 'arundhati-theme';
@@ -208,8 +209,8 @@
     document.body.innerHTML = `
       <aside class="sidebar" id="sidebar">
         <a class="brand" href="${ERP.auth.homeFor(user.role)}">
-          <span class="brand-mark">${icon('cross', 20)}</span>
-          <span><b>Arundhati ERP</b><small>${esc(ERP.INSTITUTION)}</small></span>
+          <span class="brand-mark">${icon('home', 20)}</span>
+          <span><b>CampusHub AIMS</b><small class="brand-portal">${esc(PORTAL_LABEL[user.role] || 'Portal')}</small></span>
         </a>
         <nav class="nav">${sections.map((s) => `<a href="#${s.id}" data-sec="${s.id}">${icon(s.icon || 'home')}<span>${esc(s.label)}</span>${s.badge ? `<em class="nav-badge" data-badge="${s.id}"></em>` : ''}</a>`).join('')}</nav>
         <div class="sidebar-foot">
@@ -273,7 +274,7 @@
     const sec = sections.find((s) => s.id === id) || sections[0];
     $$('.nav a').forEach((a) => a.classList.toggle('active', a.dataset.sec === sec.id));
     $('#page-title').textContent = sec.title || sec.label;
-    document.title = `${sec.label} · Arundhati ERP`;
+    document.title = `${sec.label} · CampusHub AIMS`;
     const view = $('#view');
     view.innerHTML = '';
     const el = document.createElement('div'); el.className = 'section fade-in';
