@@ -3,7 +3,7 @@ import { useEffect, useReducer, useRef, useState } from 'react';
 import ERP from '@/lib/erp';
 import { useErp } from '@/lib/ErpProvider';
 import { Icon } from './Icon';
-import { Avatar, Badge, LeaveBadge, StatusBadge, Meter, Empty, Stat, Donut } from './ui';
+import { Avatar, Badge, LeaveBadge, StatusBadge, Meter, Empty, Stat, Donut, AnnouncementCard } from './ui';
 import { DataTable } from './DataTable';
 import { openModal, confirmBox } from './Modal';
 import { toast } from './Toast';
@@ -618,51 +618,87 @@ export function MyLeave({ me }) {
 }
 
 // ---------- announcements ----------
-function NewAnnouncementBody({ titleRef, bodyRef }) {
+function NewAnnouncementBody({ titleRef, bodyRef, audienceRef, priorityRef, pdfRef }) {
+  const [sel, setSel] = useState(['all']); // 'all' or a list of group ids
+  const [prio, setPrio] = useState('medium');
+  const [pdf, setPdf] = useState(null); // { name, dataUrl }
+  const isAll = sel.includes('all');
+  const apply = (next) => { const v = next.length ? next : ['all']; setSel(v); audienceRef.current = v; };
+  const toggle = (id) => {
+    const base = isAll ? [] : sel;
+    apply(base.includes(id) ? base.filter((x) => x !== id) : [...base, id]);
+  };
+  const pickPrio = (p) => { setPrio(p); priorityRef.current = p; };
+  const onFile = (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    if (f.type !== 'application/pdf' && !/\.pdf$/i.test(f.name)) { toast('Please choose a PDF file', 'bad'); return; }
+    if (f.size > 2 * 1024 * 1024) { toast('PDF is too large (max 2 MB)', 'bad'); return; }
+    const reader = new FileReader();
+    reader.onload = () => { const v = { name: f.name, dataUrl: reader.result, size: f.size }; setPdf(v); pdfRef.current = v; };
+    reader.onerror = () => toast('Could not read that file', 'bad');
+    reader.readAsDataURL(f);
+  };
+  const clearPdf = () => { setPdf(null); pdfRef.current = null; };
   return (
     <>
       <label className="field"><span>Title</span><input maxLength={90} placeholder="e.g. Faculty meeting on Friday" onChange={(e) => { titleRef.current = e.target.value; }} /></label>
-      <label className="field"><span>Message</span><textarea rows={5} placeholder="Details for all staff" onChange={(e) => { bodyRef.current = e.target.value; }} /></label>
-      <p className="muted small" style={{ margin: 0 }}>Visible to every staff member on their dashboard.</p>
+      <label className="field"><span>Message (optional)</span><textarea rows={5} placeholder="Write the announcement details" onChange={(e) => { bodyRef.current = e.target.value; }} /></label>
+      <div className="field"><span>Attachment (PDF, optional)</span>
+        {pdf ? (
+          <div className="file-pill"><Icon name="file" size={16} /><span title={pdf.name}>{pdf.name}</span><button type="button" className="icon-btn" aria-label="Remove PDF" onClick={clearPdf}><Icon name="x" size={14} /></button></div>
+        ) : (
+          <label className="btn btn-ghost" style={{ alignSelf: 'flex-start' }}><Icon name="upload" size={16} /> Choose PDF<input type="file" accept="application/pdf,.pdf" hidden onChange={onFile} /></label>
+        )}
+        <p className="muted small" style={{ margin: '6px 0 0' }}>Recipients can view it, not download. Max 2&nbsp;MB.</p>
+      </div>
+      <div className="field"><span>Priority</span>
+        <div className="aud-picker">
+          {['low', 'medium', 'high'].map((p) => (
+            <button type="button" key={p} className={`aud-chip prio-${p}${prio === p ? ' on' : ''}`} onClick={() => pickPrio(p)}>{p[0].toUpperCase() + p.slice(1)}</button>
+          ))}
+        </div>
+      </div>
+      <div className="field"><span>Send to</span>
+        <div className="aud-picker">
+          <button type="button" className={`aud-chip${isAll ? ' on' : ''}`} onClick={() => apply(['all'])}>Everyone</button>
+          {ERP.announcements.AUDIENCES.map((g) => (
+            <button type="button" key={g.id} className={`aud-chip${!isAll && sel.includes(g.id) ? ' on' : ''}`} onClick={() => toggle(g.id)}>{g.label}</button>
+          ))}
+        </div>
+      </div>
+      <p className="muted small" style={{ margin: 0 }}>{isAll ? 'Visible to everyone — students, doctors and all staff.' : `Visible only to: ${sel.map((id) => ERP.announcements.AUDIENCES.find((x) => x.id === id)?.label || id).join(', ')}.`}</p>
     </>
   );
 }
 export function Announcements({ me, canPost = false }) {
   useErp();
-  const list = ERP.announcements.all();
+  const list = ERP.announcements.forUser(me);
   const del = async (id) => {
-    if (!(await confirmBox('Delete announcement?', 'It will be removed for all staff.', { okLabel: 'Delete', tone: 'danger' }))) return;
+    if (!(await confirmBox('Delete announcement?', 'It will be removed for everyone who can see it.', { okLabel: 'Delete', tone: 'danger' }))) return;
     ERP.announcements.remove(id); toast('Announcement deleted');
   };
   const newAnn = () => {
-    const titleRef = { current: '' }, bodyRef = { current: '' };
+    const titleRef = { current: '' }, bodyRef = { current: '' }, audienceRef = { current: ['all'] }, priorityRef = { current: 'medium' }, pdfRef = { current: null };
     openModal({
       title: 'New announcement',
-      body: <NewAnnouncementBody titleRef={titleRef} bodyRef={bodyRef} />,
+      body: <NewAnnouncementBody titleRef={titleRef} bodyRef={bodyRef} audienceRef={audienceRef} priorityRef={priorityRef} pdfRef={pdfRef} />,
       actions: [{ label: 'Cancel', tone: 'ghost' }, { label: 'Post', tone: 'primary', onClick: () => {
         const title = (titleRef.current || '').trim(), body = (bodyRef.current || '').trim();
         if (title.length < 3) { toast('Title is too short', 'bad'); return false; }
-        if (body.length < 5) { toast('Please write a message', 'bad'); return false; }
-        ERP.announcements.add(title, body, me.empId); toast('Announcement posted'); return true;
+        ERP.announcements.add(title, body, me.empId, audienceRef.current, priorityRef.current, pdfRef.current); toast('Announcement posted'); return true;
       } }],
     });
   };
   return (
     <>
-      <div className="card ld-queue-head"><div><h3>Announcements</h3><p>{list.length} notice{list.length === 1 ? '' : 's'} for all staff</p></div>
+      <div className="card ld-queue-head"><div><h3>Announcements</h3><p>{list.length} notice{list.length === 1 ? '' : 's'}{canPost ? ' posted' : ' for you'}</p></div>
         {canPost ? <button className="btn btn-primary" onClick={newAnn}><Icon name="plus" size={16} /> New announcement</button> : null}</div>
-      <div className="ld-ann-list">
-        {list.length ? list.map((a) => {
-          const by = ERP.users.byEmp(a.by) || { name: 'Unknown', designation: '' };
-          const fresh = Date.now() - new Date(a.at).getTime() < 172800000;
-          return (
-            <article className="card ld-ann" key={a.id}><Avatar name={by.name} size={40} />
-              <div className="ld-ann-body"><h3>{a.title}{fresh ? <span className="badge badge-accent">New</span> : null}</h3><p>{a.body}</p>
-                <div className="ld-ann-meta"><b>{by.name}</b> · {by.designation} · <span title={F.dateTime(a.at)}>{F.ago(a.at)}</span></div></div>
-              {a.by === me.empId ? <button className="icon-btn" title="Delete announcement" aria-label="Delete" onClick={() => del(a.id)}><Icon name="trash" size={16} /></button> : null}
-            </article>
-          );
-        }) : <div className="card"><Empty msg="No announcements yet" iconName="megaphone" /></div>}
+      <div className="ann-list">
+        {list.length ? list.map((a) => (
+          <AnnouncementCard key={a.id} a={a} onDelete={a.by === me.empId ? () => del(a.id) : null} />
+        )) : <div className="card"><Empty msg="No announcements yet" iconName="megaphone" /></div>}
       </div>
     </>
   );
