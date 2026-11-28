@@ -4,7 +4,7 @@ import ERP from '@/lib/erp';
 import { useErp, useRequireRole } from '@/lib/ErpProvider';
 import { Shell, goSection } from '@/components/Shell';
 import { Icon } from '@/components/Icon';
-import { Stat, Meter, Empty, Avatar, LeaveBadge, StatusBadge, Donut, AnnouncementCard } from '@/components/ui';
+import { Stat, Meter, Empty, Avatar, LeaveBadge, StatusBadge, Donut, AnnouncementCard, ComingSoon } from '@/components/ui';
 import { DataTable } from '@/components/DataTable';
 import { AttendanceCalendar, CalendarLegend } from '@/components/Calendar';
 import { openModal, confirmBox } from '@/components/Modal';
@@ -547,8 +547,8 @@ export default function FacultyPage() {
   const sections = [
     { id: 'dashboard', label: 'Dashboard', icon: 'home', render: (u) => <Dashboard me={u} /> },
     { id: 'attendance', label: 'My Attendance', icon: 'calendar', render: (u) => <Attendance me={u} /> },
-    { id: 'apply', label: 'Apply Leave', icon: 'plus', render: (u) => <Apply me={u} /> },
-    { id: 'leaves', label: 'My Leaves', icon: 'leave', render: (u) => <MyLeaves me={u} />, badge: pendingCount },
+    { id: 'apply', label: 'Apply Leave', icon: 'plus', render: () => <ComingSoon name="Apply Leave" /> },
+    { id: 'leaves', label: 'My Leaves', icon: 'leave', render: () => <ComingSoon name="My Leaves" /> },
     { id: 'announcements', label: 'Announcements', icon: 'megaphone', render: (u) => <Announcements me={u} /> },
     { id: 'profile', label: 'Profile', icon: 'user', render: (u) => <Profile me={u} /> },
   ];
