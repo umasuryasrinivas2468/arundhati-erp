@@ -554,7 +554,7 @@
         { key: 'role', label: 'Role', render: (u) => rolePill(u.role) },
         { key: 'dept', label: 'Department', sort: (u) => u.dept || '', render: (u) => esc(u.dept ? ERP.fmt.deptName(u.dept) : '—') },
         { key: 'designation', label: 'Designation' },
-        { key: 'username', label: 'Login', render: (u) => `<span class="cred mono">${esc(u.username)}<i>/</i>${esc(u.password)}</span>` },
+        { key: 'username', label: 'Login', render: (u) => `<span class="cred mono">${esc(u.username)}<i>/</i>${esc(u.password || '••••••')}</span>` },
         { key: 'act', label: '', noSort: true, render: (u) => `<div class="acts"><button class="icon-btn" data-edit="${esc(u.empId)}" title="Edit" aria-label="Edit">${icon('settings', 15)}</button><button class="icon-btn danger" data-rm="${esc(u.empId)}" ${u.empId === me.empId ? 'disabled title="You cannot delete yourself"' : 'title="Delete"'} aria-label="Delete">${icon('trash', 15)}</button></div>` },
       ],
     });
@@ -585,7 +585,7 @@
         <label class="field"><span>Employee ID *</span><input name="empId" value="${esc(v.empId)}" ${edit ? 'readonly title="Employee ID cannot be changed"' : ''} placeholder="e.g. MED005" style="text-transform:uppercase"></label>
         <label class="field"><span>Full name *</span><input name="name" value="${esc(v.name)}" placeholder="Dr. Firstname Lastname"></label>
         <label class="field"><span>Username *</span><input name="username" value="${esc(v.username)}" autocomplete="off" placeholder="login name"></label>
-        <label class="field"><span>Password *</span><input name="password" value="${esc(v.password)}" autocomplete="off" placeholder="min 4 characters"></label>
+        <label class="field"><span>Password *</span><input name="password" value="${esc(v.password || '')}" autocomplete="off" placeholder="${edit ? 'leave blank to keep current' : 'min 4 characters'}"></label>
         <label class="field"><span>Role *</span><select name="role">${['faculty', 'hod', 'dean', 'principal', 'admin'].map((r) => `<option value="${r}" ${v.role === r ? 'selected' : ''}>${esc(U.ROLE_LABEL[r])}</option>`).join('')}</select></label>
         <label class="field"><span>Department</span><select name="dept"><option value="">— None —</option>${ERP.DEPARTMENTS.map((d) => `<option value="${d.code}" ${v.dept === d.code ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
         <label class="field"><span>Designation *</span><input name="designation" value="${esc(v.designation)}" placeholder="e.g. Assistant Professor" list="desig-list"></label>
@@ -619,7 +619,7 @@
       if (!d.empId || !/^[A-Z0-9-]{2,}$/.test(d.empId)) return err('Employee ID is required (letters, digits or -).');
       if (!d.name) return err('Full name is required.');
       if (!d.username || /\s/.test(d.username)) return err('Username is required and cannot contain spaces.');
-      if (!d.password || d.password.length < 4) return err('Password must be at least 4 characters.');
+      if ((!edit || d.password) && (!d.password || d.password.length < 4)) return err('Password must be at least 4 characters.');
       if (!d.designation) return err('Designation is required.');
       if (['faculty', 'hod'].includes(d.role) && !d.dept) return err('Faculty and HODs must belong to a department.');
       if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) return err('Email address looks invalid.');
@@ -628,7 +628,7 @@
       if (d.role === 'hod') { const h = ERP.users.hodOf(d.dept); if (h && h.empId !== (edit ? u.empId : null)) return err(`${ERP.fmt.deptName(d.dept)} already has a HOD (${h.name}).`); }
       if (edit && u.empId === me.empId && d.role !== 'admin') return err('You cannot remove your own admin role.');
       try {
-        if (edit) { const { empId, ...patch } = d; ERP.users.update(u.empId, patch); U.toast(`${d.name} updated`); }
+        if (edit) { const { empId, ...patch } = d; if (!patch.password) delete patch.password; ERP.users.update(u.empId, patch); U.toast(`${d.name} updated`); }
         else { ERP.users.add(d); U.toast(`${d.name} added`); }
       } catch (ex) { return err(ex.message); }
       U.refresh();
@@ -672,7 +672,7 @@
         { key: 'year', label: 'Year', sort: (u) => u.year, render: (u) => `<span class="badge badge-info">${YEAR_ROMAN[u.year] || u.year} MBBS</span>` },
         { key: 'batch', label: 'Batch' },
         { key: 'att', label: 'Attendance', noSort: true, render: (u) => { const s = ERP.attendance.summarize(ERP.attendance.forEmp(u.empId)); return s.total ? `${U.statusBadge('P')} <b>${s.percent}%</b> <small class="muted">· ${s.total}d</small>` : '<span class="muted small">—</span>'; } },
-        { key: 'login', label: 'Login', render: (u) => `<span class="cred mono">${esc(u.rollNo)}<i>/</i>${esc(u.password)}</span>` },
+        { key: 'login', label: 'Login', render: (u) => `<span class="cred mono">${esc(u.rollNo)}<i>/</i>${esc(u.password || '••••••')}</span>` },
         { key: 'act', label: '', noSort: true, render: (u) => `<button class="btn btn-ghost btn-sm" data-view="${esc(u.empId)}">View</button>` },
       ],
     });
@@ -693,7 +693,7 @@
       <dl class="kv" style="display:grid;grid-template-columns:130px 1fr;gap:9px 16px;font-size:13.5px">
         <dt style="color:var(--muted);font-weight:600">Roll number</dt><dd style="margin:0"><code>${esc(u.rollNo)}</code></dd>
         <dt style="color:var(--muted);font-weight:600">College email</dt><dd style="margin:0">${esc(u.email)}</dd>
-        <dt style="color:var(--muted);font-weight:600">Login password</dt><dd style="margin:0"><code>${esc(u.password)}</code></dd>
+        <dt style="color:var(--muted);font-weight:600">Login password</dt><dd style="margin:0"><code>${esc(u.password || 'hidden (stored securely)')}</code></dd>
       </dl>
       <h3 style="margin:22px 0 12px">Attendance ${s.total ? `· ${s.percent}%` : ''}</h3>
       ${s.total ? `<div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr))">

@@ -1,5 +1,5 @@
 /* Arundhati ERP — data layer.
- * Backed by a shared server store (/api/db → Upstash Redis) when deployed, so all
+ * Backed by a shared server store (/api/db → server.js + SQLite) when deployed, so all
  * visitors see the same data; falls back to browser localStorage when no server is
  * reachable (opened as a file / `npx serve`). Everything hangs off the global `ERP`
  * object. Pages must load this file first (after employees.js + attendance-seed.js).
@@ -13,58 +13,10 @@
   // Departments and staff come from js/employees.js (generated from the employee Excel list).
   const DEPARTMENTS = window.ERP_SEED.departments;
 
-  // Leave types. Yearly entitlement (days) now varies by staff category — see
-  // LEAVE_CATEGORY_QUOTAS below (per the leave-policy note: Doctors CL 24 + AL 8,
-  // Teaching/Non-teaching CL 12). LOP has no cap.
-  const LEAVE_TYPES = [
-    { code: 'CL', name: 'Casual Leave' },
-    { code: 'AL', name: 'Academic Leave' },
-    { code: 'OD', name: 'On Duty' },
-    { code: 'LOP', name: 'Loss of Pay' },
-  ];
-
-  // Yearly entitlement (days) by staff category (employees.js → leaveCategory).
-  // null = no cap; 0 = not entitled to that type.
-  const LEAVE_CATEGORY_QUOTAS = {
-    doctor:      { CL: 24, AL: 8, OD: 10, LOP: null }, // CL 24 = 2/month (biometric CLS column)
-    teaching:    { CL: 12, AL: 0, OD: 10, LOP: null },
-    nonteaching: { CL: 12, AL: 0, OD: 10, LOP: null },
-  };
-  const DEFAULT_LEAVE_CATEGORY = 'nonteaching';
-
-  // Attendance status codes accepted in the Excel sheet.
-  const STATUS = {
-    P: { label: 'Present', tone: 'ok' },
-    A: { label: 'Absent', tone: 'bad' },
-    L: { label: 'On Leave', tone: 'warn' },
-    HD: { label: 'Half Day', tone: 'info' },
-    OD: { label: 'On Duty', tone: 'accent' },
-  };
-
-  // Leave workflow: faculty -> HOD -> Principal. HOD's own leave goes straight to Principal.
-  const LEAVE_STATE = {
-    PENDING_HOD: 'Pending HOD',
-    PENDING_PRINCIPAL: 'Pending Principal',
-    APPROVED: 'Approved',
-    REJECTED: 'Rejected',
-    CANCELLED: 'Cancelled',
-  };
-
-  // ---------- helpers ----------
-  const pad = (n) => String(n).padStart(2, '0');
-  const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  const today = () => iso(new Date());
-  const parseISO = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
-  const uid = (p) => `${p}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-  const isSunday = (s) => parseISO(s).getDay() === 0;
-
-  function daysBetween(from, to) {
-    const out = [];
-    for (let d = parseISO(from); d <= parseISO(to); d.setDate(d.getDate() + 1)) out.push(iso(d));
-    return out;
-  }
-  // Working days (Mon–Sat) in a range — what a leave actually consumes.
-  const workingDays = (from, to) => daysBetween(from, to).filter((d) => !isSunday(d));
+  // Leave rules, constants and every write operation live in js/core.js (shared with server.js).
+  const CORE = window.ERP_CORE;
+  const { LEAVE_TYPES, STATUS, LEAVE_STATE } = CORE;
+  const { pad, iso, today, parseISO, uid, isSunday, daysBetween, workingDays } = CORE.util;
 
   const DB_VERSION = 6;
 
@@ -151,66 +103,57 @@
   }
 
   // ---------- persistence ----------
-  // Shared server store (Vercel function /api/db backed by Upstash Redis): every visitor
-  // reads the same DB and writes are pushed back so uploads/leaves persist for everyone.
-  // localStorage is kept as a cache + offline fallback, so the app still runs from a plain
-  // file:// or `npx serve` with no server (serverMode stays false).
+  // With server.js: the server is the only store. Reads come from GET /api/db (already filtered
+  // to what this user may see) and every change is one POST /api/op that the server checks and
+  // applies, returning the refreshed view. Without a server (file:// or `npx serve`) the same
+  // core.js ops run against a localStorage copy, so offline demos still work.
   const API = window.ERP_API_URL || '/api/db';
-  let db;
+  let db, publicStats = null;
   let serverMode = false;
-  let putInFlight = false, putDirty = false, putTimer = null;
 
-  // Synchronous GET so the rest of the (synchronous) app sees ready data at load time.
-  function serverGetSync() {
+  // Synchronous XHR so the rest of the (synchronous) app sees ready data. Returns {status, body}.
+  function xhr(method, url, body) {
     try {
-      const xhr = new XMLHttpRequest();
-      xhr.open('GET', API, false);
-      xhr.send();
-      if (xhr.status !== 200) return undefined;
-      const res = JSON.parse(xhr.responseText);
-      return res && res.ok ? res.db : undefined; // db may be null when the store is empty
-    } catch (e) { return undefined; }
+      const x = new XMLHttpRequest();
+      x.open(method, url, false);
+      if (body !== undefined) x.setRequestHeader('Content-Type', 'application/json');
+      x.send(body === undefined ? null : JSON.stringify(body));
+      let parsed = null; try { parsed = JSON.parse(x.responseText); } catch (e) {}
+      return { status: x.status, body: parsed };
+    } catch (e) { return { status: 0, body: null }; }
   }
-  // Synchronous PUT — used for the first seed and for reset, so an immediate page reload sees it.
-  function serverPutSync() {
-    try {
-      const xhr = new XMLHttpRequest();
-      xhr.open('PUT', API, false);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      xhr.send(JSON.stringify({ db }));
-      return xhr.status === 200;
-    } catch (e) { return false; }
-  }
-  // Async write-through for ordinary saves (fired immediately, coalesced, last write wins).
-  function serverPutAsync() {
-    putDirty = true;
-    if (putInFlight) return;
-    putInFlight = true; putDirty = false;
-    fetch(API, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ db }) })
-      .then((r) => { if (!r.ok) putDirty = true; })
-      .catch(() => { putDirty = true; })
-      .finally(() => { putInFlight = false; if (putDirty) { clearTimeout(putTimer); putTimer = setTimeout(serverPutAsync, 400); } });
-  }
+  const post = (url, body) => xhr('POST', url, body).body;
   function saveLocal() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { console.warn('cache save failed', e); } }
 
   function load() {
-    const remote = serverGetSync();
-    if (remote === undefined) {            // no server reachable -> offline/local mode
-      serverMode = false;
-      try { db = JSON.parse(localStorage.getItem(KEY)); } catch (e) { db = null; }
-      if (!db || db.version !== DB_VERSION) { db = seed(); saveLocal(); }
-      return db;
+    const r = xhr('GET', API);
+    if (r.status === 401) {                // signed out: empty in-memory data just for the login page
+      serverMode = true; db = seed(); publicStats = r.body && r.body.stats;
+      sessionStorage.removeItem(SESSION);
+      try { localStorage.removeItem(KEY); } catch (e) {}
+      if (!/(^|\/)(index\.html)?$/.test(location.pathname)) location.replace('index.html');
+      return;
     }
-    serverMode = true;
-    if (!remote || remote.version !== DB_VERSION) { db = seed(); saveLocal(); serverPutSync(); } // seed empty/old store
-    else { db = remote; saveLocal(); }
-    return db;
+    if (r.status === 200 && r.body && r.body.ok && r.body.db) { serverMode = true; db = r.body.db; return; }
+    serverMode = false;                    // no server reachable -> offline/local mode
+    try { db = JSON.parse(localStorage.getItem(KEY)); } catch (e) { db = null; }
+    if (!db || db.version !== DB_VERSION) { db = seed(); saveLocal(); }
   }
-  function save() { saveLocal(); if (serverMode) serverPutAsync(); }
-  function reset() { db = seed(); saveLocal(); if (serverMode) serverPutSync(); }
-
-  // Best-effort flush of a pending write when the page is being hidden/closed.
-  window.addEventListener('pagehide', () => { if (serverMode && (putDirty || putInFlight)) { try { serverPutSync(); } catch (e) {} } });
+  // Run a write op: on the server when there is one, else locally. Throws Error with a readable message.
+  function run(op, args = {}) {
+    if (serverMode) {
+      const r = xhr('POST', '/api/op', { op, args });
+      if (r.status === 401) { sessionStorage.removeItem(SESSION); location.replace('index.html'); throw new Error('Session expired — please sign in again'); }
+      if (!r.body || !r.body.ok) throw new Error((r.body && r.body.error) || 'Could not reach the server');
+      db = r.body.db;
+      return r.body.result;
+    }
+    const result = CORE.ops[op](db, auth.current(), args);
+    saveLocal();
+    return result;
+  }
+  function save() { if (!serverMode) saveLocal(); }
+  function reset() { if (serverMode) throw new Error('Reset is not available on the server'); db = seed(); saveLocal(); }
 
   load();
 
@@ -223,18 +166,20 @@
     students: () => db.users.filter((u) => u.role === 'student'),
     byRoll: (roll) => db.users.find((u) => u.role === 'student' && u.rollNo === roll),
     hodOf: (dept) => db.users.find((u) => u.role === 'hod' && u.dept === dept),
-    add(u) {
-      if (db.users.some((x) => x.empId === u.empId)) throw new Error(`Employee ID ${u.empId} already exists`);
-      if (db.users.some((x) => x.username === u.username)) throw new Error(`Username ${u.username} already taken`);
-      db.users.push({ joinDate: today(), phone: '', ...u }); save();
-    },
-    update(empId, patch) { Object.assign(users.byEmp(empId), patch); save(); },
-    remove(empId) { db.users = db.users.filter((u) => u.empId !== empId); save(); },
+    add: (u) => run('user.add', { user: u }),
+    update: (empId, patch) => run('user.update', { empId, patch }),
+    remove: (empId) => run('user.remove', { empId }),
   };
 
   // ---------- auth ----------
   const auth = {
     login(username, password) {
+      if (serverMode) {                    // server checks the password and sets an HttpOnly session cookie
+        const r = post('/api/login', { username, password });
+        if (!r || !r.ok) return null;
+        sessionStorage.setItem(SESSION, r.user.empId);
+        return r.user;
+      }
       const q = String(username).trim().toLowerCase();
       // Match on username, employee ID / roll number, or email — so staff sign in
       // with their code and students with either their roll number or college email.
@@ -248,7 +193,14 @@
       return u;
     },
     current: () => users.byEmp(sessionStorage.getItem(SESSION)),
-    logout() { sessionStorage.removeItem(SESSION); location.href = 'index.html'; },
+    logout() { if (serverMode) post('/api/logout', {}); sessionStorage.removeItem(SESSION); location.href = 'index.html'; },
+    // Returns an error message, or null on success.
+    changePassword(current, next) {
+      if (serverMode) { const r = post('/api/password', { current, next }); return r && r.ok ? null : (r && r.error) || 'Could not change password'; }
+      const me = auth.current();
+      if (me.password !== current) return 'Current password is incorrect';
+      me.password = next; saveLocal(); return null;
+    },
     homeFor: (role) => ({ admin: 'admin.html', principal: 'principal.html', dean: 'dean.html', hod: 'hod.html', faculty: 'faculty.html', student: 'student.html' }[role]),
     // Call at top of each page. Redirects if not logged in or wrong role.
     require(roles) {
@@ -283,27 +235,9 @@
     },
     /* Import validated rows from an Excel upload. Same empId+date overwrites.
      * rows: [{empId, date, status, inTime, outTime}]; returns upload record. */
-    importRows(rows, fileName, uploadedBy) {
-      const id = uid('UP');
-      const key = (r) => `${r.empId}|${r.date}`;
-      const incoming = new Map(rows.map((r) => [key(r), { ...r, uploadId: id }]));
-      let replaced = 0;
-      db.attendance = db.attendance.filter((r) => { if (incoming.has(key(r))) { replaced++; return false; } return true; });
-      db.attendance.push(...incoming.values());
-      const dates = rows.map((r) => r.date).sort();
-      const up = { id, fileName, uploadedBy, at: new Date().toISOString(), rows: incoming.size, replaced, from: dates[0], to: dates[dates.length - 1] };
-      db.uploads.unshift(up);
-      // notify each affected employee once
-      new Set(rows.map((r) => r.empId)).forEach((e) => notify(e, `Attendance updated for ${fmt.date(up.from)} – ${fmt.date(up.to)}`));
-      save();
-      return up;
-    },
+    importRows: (rows, fileName) => run('attendance.import', { rows, fileName }),
     uploads: () => db.uploads,
-    deleteUpload(id) {
-      db.attendance = db.attendance.filter((r) => r.uploadId !== id);
-      db.uploads = db.uploads.filter((u) => u.id !== id);
-      save();
-    },
+    deleteUpload: (id) => run('attendance.deleteUpload', { id }),
     /* Validate raw sheet rows (objects keyed by header). Accepts flexible header names.
      * Returns { valid: [...], errors: [{row, message}] } */
     validate(rawRows) {
@@ -348,7 +282,6 @@
   };
 
   // ---------- leaves ----------
-  function notify(to, text) { db.notifications.unshift({ id: uid('NT'), to, text, at: new Date().toISOString(), read: false }); }
 
   const leaves = {
     all: () => db.leaves,
@@ -356,85 +289,25 @@
     forEmp: (empId) => db.leaves.filter((l) => l.empId === empId).sort((a, b) => b.appliedAt.localeCompare(a.appliedAt)),
     forDept: (dept) => db.leaves.filter((l) => users.byEmp(l.empId)?.dept === dept),
     // Leaves waiting on this user to act.
-    pendingFor(user) {
-      if (user.role === 'hod') return db.leaves.filter((l) => l.status === LEAVE_STATE.PENDING_HOD && users.byEmp(l.empId)?.dept === user.dept);
-      if (user.role === 'principal') return db.leaves.filter((l) => l.status === LEAVE_STATE.PENDING_PRINCIPAL);
-      return [];
-    },
-    balance(empId) {
-      const year = String(new Date().getFullYear());
-      const u = users.byEmp(empId);
-      const cat = (u && u.leaveCategory) || DEFAULT_LEAVE_CATEGORY;
-      const quotas = LEAVE_CATEGORY_QUOTAS[cat] || LEAVE_CATEGORY_QUOTAS[DEFAULT_LEAVE_CATEGORY];
-      return LEAVE_TYPES.map((t) => {
-        const quota = quotas[t.code] === undefined ? null : quotas[t.code];
-        const used = db.leaves.filter((l) => l.empId === empId && l.type === t.code && l.status === LEAVE_STATE.APPROVED && l.from.startsWith(year)).reduce((s, l) => s + l.days, 0);
-        const pending = db.leaves.filter((l) => l.empId === empId && l.type === t.code && [LEAVE_STATE.PENDING_HOD, LEAVE_STATE.PENDING_PRINCIPAL].includes(l.status)).reduce((s, l) => s + l.days, 0);
-        return { ...t, quota, used, pending, remaining: quota == null ? null : quota - used };
-      });
-    },
-    /* Apply. {empId, type, from, to, reason, halfDay}. Throws on validation errors. */
-    apply({ empId, type, from, to, reason, halfDay = false }) {
-      const u = users.byEmp(empId);
-      if (!from || !to || to < from) throw new Error('Choose a valid date range');
-      if (!reason || reason.trim().length < 5) throw new Error('Please give a reason (min 5 characters)');
-      const days = halfDay ? 0.5 : workingDays(from, to).length;
-      if (!days) throw new Error('Selected range has no working days');
-      const overlap = db.leaves.find((l) => l.empId === empId && ![LEAVE_STATE.REJECTED, LEAVE_STATE.CANCELLED].includes(l.status) && l.from <= to && l.to >= from);
-      if (overlap) throw new Error(`Overlaps with an existing leave (${fmt.date(overlap.from)} – ${fmt.date(overlap.to)})`);
-      const bal = leaves.balance(empId).find((b) => b.code === type);
-      if (bal.quota != null && bal.remaining - bal.pending < days) throw new Error(`Insufficient ${bal.name} balance (${bal.remaining - bal.pending} available)`);
-      const status = u.role === 'faculty' && users.hodOf(u.dept) ? LEAVE_STATE.PENDING_HOD : LEAVE_STATE.PENDING_PRINCIPAL;
-      const l = { id: uid('LV'), empId, type, from, to, days, halfDay, reason: reason.trim(), status, appliedAt: new Date().toISOString(), history: [] };
-      db.leaves.push(l);
-      const approver = status === LEAVE_STATE.PENDING_HOD ? users.hodOf(u.dept) : db.users.find((x) => x.role === 'principal');
-      if (approver) notify(approver.empId, `${u.name} applied for ${type} (${days} day${days === 1 ? '' : 's'})`);
-      save();
-      return l;
-    },
-    /* actor acts on leave. action: 'approve' | 'reject'. HOD approve = recommend -> Principal. */
-    act(id, actor, action, remark = '') {
-      const l = leaves.byId(id);
-      if (!l) throw new Error('Leave not found');
-      if (!leaves.pendingFor(actor).includes(l)) throw new Error('You cannot act on this request');
-      const at = new Date().toISOString();
-      if (action === 'reject') {
-        l.status = LEAVE_STATE.REJECTED;
-        l.history.push({ by: actor.empId, role: actor.role, action: 'Rejected', remark, at });
-        notify(l.empId, `Your ${l.type} leave from ${fmt.date(l.from)} was rejected by ${actor.designation}`);
-      } else if (actor.role === 'hod') {
-        l.status = LEAVE_STATE.PENDING_PRINCIPAL;
-        l.history.push({ by: actor.empId, role: actor.role, action: 'Recommended', remark, at });
-        notify(l.empId, `Your ${l.type} leave was recommended by HOD and forwarded to Principal`);
-        const p = db.users.find((x) => x.role === 'principal'); if (p) notify(p.empId, `Leave from ${users.byEmp(l.empId).name} awaiting approval`);
-      } else {
-        l.status = LEAVE_STATE.APPROVED;
-        l.history.push({ by: actor.empId, role: actor.role, action: 'Approved', remark, at });
-        notify(l.empId, `Your ${l.type} leave from ${fmt.date(l.from)} was approved`);
-      }
-      save();
-      return l;
-    },
-    cancel(id, empId) {
-      const l = leaves.byId(id);
-      if (!l || l.empId !== empId) throw new Error('Not allowed');
-      if (![LEAVE_STATE.PENDING_HOD, LEAVE_STATE.PENDING_PRINCIPAL].includes(l.status)) throw new Error('Only pending requests can be cancelled');
-      l.status = LEAVE_STATE.CANCELLED;
-      l.history.push({ by: empId, role: 'self', action: 'Cancelled', remark: '', at: new Date().toISOString() });
-      save();
-    },
+    pendingFor: (user) => CORE.pendingFor(db, user),
+    balance: (empId) => CORE.balance(db, empId),
+    // Apply for the signed-in user. {type, from, to, reason, halfDay}. Throws on validation errors.
+    apply: ({ type, from, to, reason, halfDay = false }) => run('leave.apply', { type, from, to, reason, halfDay }),
+    // action: 'approve' | 'reject'. HOD approve = recommend -> Principal. (actor = signed-in user)
+    act: (id, actor, action, remark = '') => run('leave.act', { id, action, remark }),
+    cancel: (id) => run('leave.cancel', { id }),
   };
 
   // ---------- announcements & notifications ----------
   const announcements = {
     all: () => db.announcements.slice().sort((a, b) => b.at.localeCompare(a.at)),
-    add(title, body, by) { db.announcements.push({ id: uid('AN'), title, body, by, at: new Date().toISOString() }); save(); },
-    remove(id) { db.announcements = db.announcements.filter((a) => a.id !== id); save(); },
+    add: (title, body) => run('announcement.add', { title, body }),
+    remove: (id) => run('announcement.remove', { id }),
   };
   const notifications = {
     for: (empId) => db.notifications.filter((n) => n.to === empId),
     unread: (empId) => db.notifications.filter((n) => n.to === empId && !n.read).length,
-    markAllRead(empId) { db.notifications.forEach((n) => { if (n.to === empId) n.read = true; }); save(); },
+    markAllRead: () => run('notifications.markAllRead'),
   };
 
   // ---------- formatting ----------
@@ -456,7 +329,7 @@
   window.ERP = {
     INSTITUTION, DEPARTMENTS, LEAVE_TYPES, STATUS, LEAVE_STATE,
     util: { iso, today, parseISO, daysBetween, workingDays, isSunday, uid },
-    db: () => db, save, reset,
+    db: () => db, save, reset, publicStats: () => publicStats,
     users, auth, attendance, leaves, announcements, notifications, fmt,
   };
 })();
