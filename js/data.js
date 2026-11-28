@@ -47,6 +47,7 @@
       name: s.name,
       year: s.year,
       batch: s.batch,
+      category: s.category || null,
       designation: `${ROMAN[s.year] || s.year} MBBS Student`,
       dept: null, phone: '', joinDate: '',
     }));
@@ -93,6 +94,7 @@
       attendance,
       uploads: seedUploads(attendance),
       leaves: [],
+      feePayments: [],
       announcements: [
         { id: uid('AN'), title: 'Biometric sync', body: 'October 2026 (01–26 Oct) and November 2026 (01–10 Nov) attendance has been imported from the biometric Basic Work Duration reports. New months upload via Admin → Upload attendance.', by: 'ADM001', at: new Date().toISOString() },
         { id: uid('AN'), title: 'Biometric attendance — late-punch policy', body: 'Reporting more than 15 minutes late counts as a late punch. 1st & 2nd late punches in a month: no loss of pay. 3rd to 5th late punches: half-day loss of pay each. Beyond the 5th late punch: one full day loss of pay each.', by: 'ADM001', at: new Date().toISOString() },
@@ -299,10 +301,37 @@
   };
 
   // ---------- announcements & notifications ----------
+  // On the server, `db.announcements` is already filtered to what this user may see.
+  const PRIORITY = { low: ['Low', 'badge-muted'], medium: ['Medium', 'badge-warn'], high: ['High', 'badge-bad'] };
   const announcements = {
-    all: () => db.announcements.slice().sort((a, b) => b.at.localeCompare(a.at)),
-    add: (title, body) => run('announcement.add', { title, body }),
+    AUDIENCES: CORE.AUDIENCES,
+    all: () => db.announcements.filter((a) => serverMode || CORE.visibleTo(a, auth.current())).sort((a, b) => b.at.localeCompare(a.at)),
+    // {title, body, audience: ['all'] | group ids, priority: low|medium|high, pdf: {name, dataUrl} | null}
+    add: (a) => run('announcement.add', a),
     remove: (id) => run('announcement.remove', { id }),
+    audienceLabel: (a) => {
+      const aud = a.audience && a.audience.length ? a.audience : ['all'];
+      return aud.includes('all') ? 'Everyone' : aud.map((g) => CORE.AUDIENCES.find((x) => x.id === g)?.label || g).join(', ');
+    },
+    priorityMeta: (x) => { const p = (typeof x === 'string' ? x : x?.priority) || 'medium'; const [label, cls] = PRIORITY[p] || PRIORITY.medium; return { label, cls, priority: PRIORITY[p] ? p : 'medium' }; },
+    // Where the PDF can be opened: a server URL, or the inline data URL in offline mode.
+    pdfUrl: (a) => (serverMode ? `/api/announcement-pdf?id=${encodeURIComponent(a.id)}` : a.pdf?.dataUrl),
+  };
+
+  // ---------- fees (read-only: the accounts office records payments) ----------
+  const FEE_BY_CATEGORY = { A: 60000, B: 1155000, C: 2300000 }; // MBBS tuition, ₹ per academic year
+  const academicYear = (d = new Date()) => { const y = d.getFullYear(); return d.getMonth() >= 5 ? `${y}-${pad((y + 1) % 100)}` : `${y - 1}-${pad(y % 100)}`; };
+  const fees = {
+    academicYear,
+    summaryFor(roll) {
+      const ay = academicYear();
+      const category = users.byRoll(roll)?.category || null;
+      const annual = FEE_BY_CATEGORY[category] || 0;
+      const payments = (db.feePayments || []).filter((p) => p.roll === roll && p.academicYear === ay).sort((a, b) => b.at.localeCompare(a.at));
+      const paid = payments.reduce((s, p) => s + (p.amount || 0), 0);
+      const status = !category ? 'none' : annual && paid >= annual ? 'paid' : paid ? 'partial' : 'pending';
+      return { category, annual, paid, balance: Math.max(0, annual - paid), percent: annual ? Math.min(100, Math.round((paid / annual) * 100)) : 0, status, academicYear: ay, payments };
+    },
   };
   const notifications = {
     for: (empId) => db.notifications.filter((n) => n.to === empId),
@@ -323,6 +352,7 @@
     deptName: (code) => DEPARTMENTS.find((d) => d.code === code)?.name || '—',
     leaveName: (code) => LEAVE_TYPES.find((t) => t.code === code)?.name || code,
     initials: (name) => name.replace(/^Dr\.\s*/, '').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase(),
+    inr: (n) => (n == null || n === '' ? '—' : `₹${Number(n).toLocaleString('en-IN')}`),
     MONTHS,
   };
 
@@ -330,6 +360,6 @@
     INSTITUTION, DEPARTMENTS, LEAVE_TYPES, STATUS, LEAVE_STATE,
     util: { iso, today, parseISO, daysBetween, workingDays, isSunday, uid },
     db: () => db, save, reset, publicStats: () => publicStats,
-    users, auth, attendance, leaves, announcements, notifications, fmt,
+    users, auth, attendance, leaves, announcements, notifications, fees, fmt,
   };
 })();

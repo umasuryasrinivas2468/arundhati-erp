@@ -710,47 +710,7 @@
   // ======================================================================
   // ANNOUNCEMENTS
   // ======================================================================
-  function renderAnnouncements(el) {
-    const list = ERP.announcements.all();
-    el.innerHTML = `
-      <div class="cols">
-        <div class="card">
-          <div class="card-head"><div><h3>All announcements</h3><p>Visible on every role's dashboard</p></div><span class="badge badge-muted">${list.length}</span></div>
-          ${list.length ? `<div class="ann-list">${list.map((a) => {
-            const by = ERP.users.byEmp(a.by);
-            return `<div class="ann"><span class="ann-ic">${icon('megaphone', 18)}</span><div class="ann-main"><b>${esc(a.title)}</b><p>${esc(a.body)}</p>
-              <small class="muted">${by ? `${esc(by.name)} · ${esc(by.designation)}` : esc(a.by)} · ${ERP.fmt.dateTime(a.at)} (${ERP.fmt.ago(a.at)})</small></div>
-              <div class="acts"><button class="icon-btn danger" data-del="${esc(a.id)}" title="Delete" aria-label="Delete">${icon('trash', 15)}</button></div></div>`;
-          }).join('')}</div>` : U.empty('No announcements yet', 'megaphone')}
-        </div>
-        <form class="card" id="ann-form" novalidate>
-          <div class="card-head"><div><h3>Post an announcement</h3><p>Posted as ${esc(me.name)}</p></div></div>
-          <label class="field"><span>Title</span><input name="title" maxlength="90" placeholder="e.g. Biometric maintenance on Saturday"></label>
-          <label class="field"><span>Message</span><textarea name="body" rows="5" maxlength="600" placeholder="Details for staff…"></textarea></label>
-          <div class="char-count"><span data-cc>0</span>/600</div>
-          <button class="btn btn-primary btn-block" type="submit">${icon('megaphone', 16)} Publish</button>
-        </form>
-      </div>`;
-    const form = $('#ann-form', el);
-    form.elements.body.addEventListener('input', () => { $('[data-cc]', form).textContent = form.elements.body.value.length; });
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const title = form.elements.title.value.trim(), body = form.elements.body.value.trim();
-      if (title.length < 3) { form.elements.title.focus(); return U.toast('Title must be at least 3 characters', 'bad'); }
-      if (body.length < 5) { form.elements.body.focus(); return U.toast('Message must be at least 5 characters', 'bad'); }
-      ERP.announcements.add(title, body, me.empId);
-      U.toast('Announcement published');
-      U.refresh();
-    });
-    el.addEventListener('click', async (e) => {
-      const b = e.target.closest('[data-del]'); if (!b) return;
-      const a = list.find((x) => x.id === b.dataset.del);
-      if (!(await U.confirm('Delete announcement?', `"${a.title}" will be removed for everyone.`, { okLabel: 'Delete', tone: 'danger' }))) return;
-      ERP.announcements.remove(a.id);
-      U.toast('Announcement deleted');
-      U.refresh();
-    });
-  }
+  const renderAnnouncements = (el) => U.announcementsPage(el, me, { canPost: true });
 
   // Stop the browser from opening a file dropped outside the dropzone.
   ['dragover', 'drop'].forEach((t) => window.addEventListener(t, (e) => { if (!e.target.closest || !e.target.closest('.dropzone')) e.preventDefault(); }));

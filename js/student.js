@@ -185,19 +185,41 @@
     });
   }
 
+  const FEE_LABEL = { paid: 'Paid in full', partial: 'Partially paid', pending: 'Yet to update', none: 'Not assigned' };
+  const FEE_TONE = { paid: 'ok', partial: 'warn', pending: 'info', none: 'info' };
   function renderFees(el) {
-    comingSoon(el, {
-      iconName: 'wallet',
-      title: 'Fees & payments, coming soon',
-      lead: 'A single place to view your fee structure, see what’s due, pay online securely, and download receipts — no more standing in queues at the accounts office.',
-      note: 'Online fee payment is being set up with the accounts office. Watch this space.',
-      feats: [
-        ['rupee', 'Fee statement', 'Your full fee structure and running balance, term by term.'],
-        ['wallet', 'Pay online', 'Secure payment by UPI, card or net-banking.'],
-        ['file', 'Instant receipts', 'Download a receipt the moment a payment clears.'],
-        ['bell', 'Due reminders', 'Timely nudges before each instalment is due.'],
-      ],
-    });
+    const s = ERP.fees.summaryFor(me.rollNo);
+    if (!s.category) {
+      el.innerHTML = `<div class="card"><div class="card-head"><div><h3>Fees</h3><p>Academic year ${s.academicYear}</p></div></div>
+        ${ui.empty('A fee category has not been assigned to your account yet. Please contact the accounts office.', 'wallet')}</div>`;
+      return;
+    }
+    const has = s.payments.length > 0;
+    el.innerHTML = `
+      <div class="hero st-hero">
+        <div style="position:relative;z-index:1">
+          <p style="margin:0 0 4px;opacity:.85;font-weight:600">Tuition fee · ${s.academicYear}</p>
+          <h2>${fmt.inr(s.annual)} <small style="font-size:15px;font-weight:600;opacity:.85">/ year</small></h2>
+          <div class="hero-meta">
+            <span class="chip">${icon('wallet', 14)} Category ${esc(s.category)}</span>
+            <span class="chip">${icon('cap', 14)} ${esc(me.designation)}</span>
+            <span class="chip">${icon(s.status === 'paid' ? 'check' : 'clock', 14)} ${FEE_LABEL[s.status]}</span>
+          </div>
+        </div>
+      </div>
+      <div class="cards">
+        ${ui.stat('Annual fee', fmt.inr(s.annual), { sub: `Category ${esc(s.category)} · ${s.academicYear}`, iconName: 'rupee', tone: 'accent' })}
+        ${ui.stat('Amount paid', has ? fmt.inr(s.paid) : '—', { sub: has ? `${s.payments.length} payment${s.payments.length === 1 ? '' : 's'}` : 'Not updated yet', iconName: 'check', tone: has ? 'ok' : 'info' })}
+        ${ui.stat('Balance due', has ? fmt.inr(s.balance) : '—', { sub: has ? (s.balance ? 'Pending payment' : 'Nothing due') : 'Not updated yet', iconName: 'alert', tone: has && s.balance ? 'bad' : 'info' })}
+        ${ui.stat('Status', FEE_LABEL[s.status], { sub: has ? `${s.percent}% of annual fee` : 'Awaiting accounts update', iconName: 'wallet', tone: FEE_TONE[s.status] })}
+      </div>
+      <div class="card">
+        <div class="card-head"><div><h3>Payment history</h3><p>${has ? 'Your recorded payments for this academic year' : 'No payments recorded yet'}</p></div></div>
+        ${has ? `<div class="list">${s.payments.map((p) => `
+          <div class="list-item"><div><b>${fmt.inr(p.amount)}</b> <span class="muted small">· ${esc(p.mode || '')}</span><p>${fmt.dateTime(p.at)}${p.reference ? ` · Ref <code>${esc(p.reference)}</code>` : ''}</p></div>
+            <span class="badge badge-ok">${esc(p.id)}</span></div>`).join('')}</div>`
+          : ui.empty('Fee payment details are yet to be updated. Once the accounts office records your payment, it will appear here.', 'wallet')}
+      </div>`;
   }
 
   function renderHostel(el) {
@@ -231,18 +253,7 @@
   }
 
   // ================= ANNOUNCEMENTS =================
-  function renderAnnouncements(el) {
-    const list = ERP.announcements.all();
-    el.innerHTML = `
-      <div class="card">
-        <div class="card-head"><div><h3>Announcements</h3><p>Notices from the administration</p></div><span class="badge badge-muted">${list.length}</span></div>
-        <div class="list">${list.length ? list.map((a) => `
-          <div class="list-item" style="justify-content:flex-start;align-items:flex-start">
-            <span class="ann-icon">${icon('megaphone', 17)}</span>
-            <div style="flex:1;min-width:0"><b>${esc(a.title)}</b><p>${esc(a.body)}</p><small class="muted">${esc(nameOf(a.by))} · ${fmt.dateTime(a.at)} (${fmt.ago(a.at)})</small></div>
-          </div>`).join('') : ui.empty('No announcements yet', 'megaphone')}</div>
-      </div>`;
-  }
+  const renderAnnouncements = (el) => ui.announcementsPage(el, me);
 
   // ================= PROFILE =================
   function renderProfile(el) {

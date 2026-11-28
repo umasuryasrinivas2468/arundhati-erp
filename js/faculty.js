@@ -528,6 +528,7 @@
       { id: 'attendance', label: 'My Attendance', icon: 'calendar', render: renderAttendance },
       { id: 'apply', label: 'Apply Leave', icon: 'plus', render: ui.leaveSoon },
       { id: 'leaves', label: 'My Leaves', icon: 'leave', render: ui.leaveSoon },
+      { id: 'announcements', label: 'Announcements', icon: 'megaphone', render: (el) => ui.announcementsPage(el, me) },
       { id: 'profile', label: 'Profile', icon: 'user', render: renderProfile },
     ],
   });

@@ -55,7 +55,31 @@
   const principalOf = (db) => db.users.find((u) => u.role === 'principal');
   const deny = () => { throw new Error('You are not allowed to do that'); };
   const need = (actor, roles) => { if (!actor || !roles.includes(actor.role)) deny(); };
-  function notify(db, to, text) { db.notifications.unshift({ id: uid('NT'), to, text, at: new Date().toISOString(), read: false }); }
+  function notify(db, to, text, extra = {}) {
+    db.notifications.unshift({ id: uid('NT'), to, text, sub: extra.sub || '', link: extra.link || '', priority: extra.priority || '', at: new Date().toISOString(), read: false });
+  }
+
+  // ---------- announcement audiences ----------
+  // Students by role; staff by their `company` (employees.js). Leaders always see every notice.
+  const AUDIENCES = [
+    { id: 'students', label: 'Students' },
+    { id: 'doctors', label: 'Doctors' },
+    { id: 'college', label: 'Faculty / College staff' },
+    { id: 'hospital', label: 'Hospital staff' },
+    { id: 'other', label: 'Other staff' },
+  ];
+  const COMPANY_GROUP = { 'AIMS-DOCTORS': 'doctors', 'AIMS-COLLEGE': 'college', 'AIMS-HOSPITAL': 'hospital', 'AIMS-OTHER STAFF': 'other' };
+  const PRIORITIES = ['low', 'medium', 'high'];
+  const PDF_MAX = 2 * 1024 * 1024;
+  const groupsOf = (u) => (!u ? [] : u.role === 'student' ? ['students'] : COMPANY_GROUP[u.company] ? [COMPANY_GROUP[u.company]] : []);
+  const audienceOf = (a) => (a.audience && a.audience.length ? a.audience : ['all']);
+  function visibleTo(a, u) {
+    const aud = audienceOf(a);
+    if (aud.includes('all')) return true;
+    if (!u) return false;
+    if (['admin', 'principal', 'dean', 'hod'].includes(u.role)) return true;
+    return groupsOf(u).some((g) => aud.includes(g));
+  }
 
   // ---------- reads used by the rules ----------
   function pendingFor(db, user) {
@@ -158,12 +182,26 @@
       db.uploads = db.uploads.filter((u) => u.id !== id);
     },
 
-    'announcement.add'(db, actor, { title, body }) {
+    'announcement.add'(db, actor, { title, body, audience, priority, pdf }) {
       need(actor, ['admin', 'principal', 'dean']);
-      if (!String(title || '').trim() || !String(body || '').trim()) throw new Error('Title and message are required');
-      const a = { id: uid('AN'), title: String(title).trim(), body: String(body).trim(), by: actor.empId, at: new Date().toISOString() };
+      const t = String(title || '').trim(), b = String(body || '').trim();
+      if (t.length < 3) throw new Error('Title is too short');
+      const ids = AUDIENCES.map((g) => g.id);
+      const aud = Array.isArray(audience) ? [...new Set(audience.filter((g) => ids.includes(g)))] : [];
+      const prio = PRIORITIES.includes(priority) ? priority : 'medium';
+      let att = null;
+      if (pdf) {
+        const url = String(pdf.dataUrl || '');
+        if (!url.startsWith('data:application/pdf;base64,')) throw new Error('Attachment must be a PDF');
+        const size = Math.floor((url.length - 28) * 3 / 4);
+        if (size > PDF_MAX) throw new Error('PDF is too large (max 2 MB)');
+        att = { name: String(pdf.name || 'attachment.pdf').slice(0, 120), dataUrl: url, size };
+      }
+      const a = { id: uid('AN'), title: t.slice(0, 90), body: b, by: actor.empId, at: new Date().toISOString(), audience: aud.length ? aud : ['all'], priority: prio, pdf: att };
       db.announcements.push(a);
-      return a;
+      // ponytail: one bell notification per recipient in the shared blob; prune old notifications if the blob gets heavy.
+      db.users.forEach((u) => { if (u.empId !== actor.empId && (a.audience.includes('all') || groupsOf(u).some((g) => a.audience.includes(g)))) notify(db, u.empId, `New announcement: ${a.title}`, { sub: b, link: '#announcements', priority: prio }); });
+      return { ...a, pdf: att && { name: att.name, size: att.size } };
     },
     'announcement.remove'(db, actor, { id }) {
       const a = db.announcements.find((x) => x.id === id);
@@ -206,6 +244,7 @@
   const CORE = {
     LEAVE_TYPES, LEAVE_CATEGORY_QUOTAS, DEFAULT_LEAVE_CATEGORY, STATUS, LEAVE_STATE,
     util: { pad, iso, today, parseISO, uid, isSunday, daysBetween, workingDays, fmtDate, MONTHS },
+    AUDIENCES, groupsOf, visibleTo,
     byEmp, hodOf, pendingFor, balance, ops,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = CORE; else root.ERP_CORE = CORE;

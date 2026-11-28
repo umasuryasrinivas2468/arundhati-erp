@@ -7,7 +7,7 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'erp-check-'));
 const DB_PATH = path.join(dir, 'erp.db'), PORT = '3197', B = `http://127.0.0.1:${PORT}`;
 const u = (empId, role, dept, extra = {}) => ({ empId, username: empId.toLowerCase(), password: 'pass1234', role, dept, name: `${role} ${empId}`, designation: role, email: `${empId}@x`, phone: '99', ...extra });
 fs.writeFileSync(path.join(dir, 'seed.json'), JSON.stringify({
-  version: 6, users: [u('ADM', 'admin', null), u('PR', 'principal', 'X'), u('HX', 'hod', 'X'), u('F1', 'faculty', 'X'), u('F2', 'faculty', 'Y'), u('S1', 'student', null)],
+  version: 6, users: [u('ADM', 'admin', null), u('PR', 'principal', 'X'), u('HX', 'hod', 'X'), u('F1', 'faculty', 'X', { company: 'AIMS-COLLEGE' }), u('F2', 'faculty', 'Y', { company: 'AIMS-DOCTORS' }), u('S1', 'student', null)],
   attendance: [{ empId: 'F1', date: '2026-11-02', status: 'P' }, { empId: 'F2', date: '2026-11-02', status: 'A' }, { empId: 'S1', date: '2026-11-02', status: 'P' }],
   uploads: [], leaves: [], announcements: [], notifications: [],
 }));
@@ -22,7 +22,7 @@ async function login(id, pw = 'pass1234') {
     const res = await fetch(B + p, body ? { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify(body) } : { headers: { cookie } });
     return { status: res.status, ...(await res.json()) };
   };
-  return { status: r.status, db: () => call('/api/db').then((x) => x.db), op: (op, args) => call('/api/op', { op, args }), call };
+  return { status: r.status, cookie, db: () => call('/api/db').then((x) => x.db), op: (op, args) => call('/api/op', { op, args }), call };
 }
 
 (async () => {
@@ -66,6 +66,24 @@ async function login(id, pw = 'pass1234') {
   const an = await pr.op('announcement.add', { title: 'Notice', body: 'Hello' }); assert.equal(an.ok, true);
   assert.equal((await f1.op('announcement.remove', { id: an.result.id })).ok, false);
   assert.equal((await f1.op('nope', {})).ok, false);
+
+  // announcements reach only their audience; PDFs are fetched separately and only by that audience
+  const pdf = { name: 'circular.pdf', dataUrl: 'data:application/pdf;base64,' + Buffer.from('%PDF-1.4 test').toString('base64') };
+  assert.equal((await pr.op('announcement.add', { title: 'Bad file', pdf: { name: 'x.pdf', dataUrl: 'data:text/html;base64,PGI+' } })).ok, false, 'PDF only');
+  const sa = await pr.op('announcement.add', { title: 'Students only', audience: ['students'], priority: 'high', pdf });
+  assert.equal(sa.ok, true, 'message is optional');
+  const said = sa.result.id;
+  const sView = (await st.db()).announcements.find((a) => a.id === said);
+  assert.ok(sView && sView.pdf.name === 'circular.pdf' && !sView.pdf.dataUrl, 'student sees it, without the PDF bytes');
+  assert.ok(!(await f1.db()).announcements.some((a) => a.id === said), 'college staff do not see a students-only notice');
+  assert.ok((await hod.db()).announcements.some((a) => a.id === said), 'leaders see every notice');
+  assert.ok((await st.db()).notifications.some((n) => n.link === '#announcements' && n.priority === 'high'));
+  assert.ok(!(await f1.db()).notifications.some((n) => /Students only/.test(n.text)));
+  const got = await fetch(`${B}/api/announcement-pdf?id=${said}`, { headers: { cookie: st.cookie } });
+  assert.equal(got.status, 200); assert.equal(got.headers.get('content-type'), 'application/pdf');
+  assert.equal(await got.text(), '%PDF-1.4 test');
+  assert.equal((await fetch(`${B}/api/announcement-pdf?id=${said}`, { headers: { cookie: f1.cookie } })).status, 404);
+  assert.equal((await fetch(`${B}/api/announcement-pdf?id=${said}`)).status, 401);
 
   // admin can manage users; passwords are hashed server-side
   assert.equal((await adm.op('user.add', { user: { empId: 'N1', name: 'New', username: 'n1', role: 'faculty', dept: 'Y', password: 'secret9' } })).ok, true);

@@ -34,6 +34,7 @@
     excel: '<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M9 11l4 6M13 11l-4 6"/>',
     megaphone: '<path d="M3 10v4h4l8 4V6l-8 4z"/><path d="M18 9a4 4 0 010 6"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+    eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
     swap: '<path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/>',
@@ -57,8 +58,8 @@
   };
   const icon = (name, size = 18) => `<svg class="icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
 
-  const ROLE_LABEL = { admin: 'Administrator', principal: 'Principal', dean: 'Dean', hod: 'Head of Department', faculty: 'Faculty / Staff', student: 'Student' };
   const PORTAL_LABEL = { admin: 'Admin Portal', principal: 'Principal Portal', dean: 'Dean Portal', hod: 'HOD Portal', faculty: 'Faculty Portal', student: 'Student Portal' };
+  const ROLE_LABEL = { admin: 'Administrator', principal: 'Principal', dean: 'Dean', hod: 'Head of Department', faculty: 'Faculty / Staff', student: 'Student' };
 
   // ---------- theme ----------
   const THEME_KEY = 'arundhati-theme';
@@ -210,7 +211,7 @@
       <aside class="sidebar" id="sidebar">
         <a class="brand" href="${ERP.auth.homeFor(user.role)}">
           <span class="brand-mark">${icon('home', 20)}</span>
-          <span><b>CampusHub AIMS</b><small class="brand-portal">${esc(PORTAL_LABEL[user.role] || 'Portal')}</small></span>
+          <span><b>CampusHub AIMS</b><small class="brand-portal">${PORTAL_LABEL[user.role] || 'Portal'}</small></span>
         </a>
         <nav class="nav">${sections.map((s) => `<a href="#${s.id}" data-sec="${s.id}">${icon(s.icon || 'home')}<span>${esc(s.label)}</span>${s.badge ? `<em class="nav-badge" data-badge="${s.id}"></em>` : ''}</a>`).join('')}</nav>
         <div class="sidebar-foot">
@@ -249,7 +250,12 @@
       e.stopPropagation(); panel.hidden = !panel.hidden;
       if (!panel.hidden) {
         const list = ERP.notifications.for(user.empId).slice(0, 12);
-        panel.innerHTML = `<div class="demo-head">Notifications</div>${list.length ? list.map((n) => `<div class="notif-item ${n.read ? '' : 'unread'}"><p>${esc(n.text)}</p><small>${ERP.fmt.ago(n.at)}</small></div>`).join('') : '<p class="muted small" style="padding:12px 14px">You\'re all caught up.</p>'}`;
+        panel.innerHTML = `<div class="demo-head">Notifications</div>${list.length ? list.map((n) => {
+          const prio = n.priority ? ERP.announcements.priorityMeta(n.priority) : null;
+          return `<div class="notif-item ${n.read ? '' : 'unread'}${n.link ? ' click' : ''}"${n.link ? ` data-link="${esc(n.link)}"` : ''}><b>${esc(n.text)}</b>${n.sub ? `<p>${esc(n.sub)}</p>` : ''}
+            <div class="notif-foot">${prio ? `<span class="badge ${prio.cls}">${prio.label}</span>` : ''}<small>${ERP.fmt.ago(n.at)}</small></div></div>`;
+        }).join('') : '<p class="muted small" style="padding:12px 14px">You\'re all caught up.</p>'}`;
+        panel.querySelectorAll('[data-link]').forEach((d) => { d.onclick = () => { panel.hidden = true; go(d.dataset.link.slice(1)); }; });
         ERP.notifications.markAllRead(user.empId); syncBadges();
       }
     };
@@ -316,5 +322,98 @@
     ],
   });
 
-  window.ERP.ui = { $, $$, esc, icon, toast, modal, confirm: confirmBox, avatar, statusBadge, leaveBadge, stat, empty, meter, table, bars, donut, downloadXlsx, shell, go, refresh, syncBadges, applyTheme, ROLE_LABEL, comingSoon, leaveSoon };
+  // ================= ANNOUNCEMENTS =================
+  /* One announcements page for every portal. On the server, only notices this user may see arrive. */
+  function annCard(a, me) {
+    const by = ERP.users.byEmp(a.by) || { name: 'Unknown' };
+    const prio = ERP.announcements.priorityMeta(a);
+    const fresh = Date.now() - new Date(a.at).getTime() < 172800000;
+    const kb = a.pdf && a.pdf.size ? ` (${Math.max(1, Math.round(a.pdf.size / 1024))} KB)` : '';
+    return `<article class="ann-card" data-id="${esc(a.id)}">
+      <div class="ann-main">
+        <div class="ann-top"><span class="ann-cat prio-${prio.priority}">${prio.label} priority</span>
+          <span class="ann-aud">${icon('users', 12)} ${esc(ERP.announcements.audienceLabel(a))}</span>${fresh ? '<span class="badge badge-accent">New</span>' : ''}</div>
+        <h3 class="ann-title">${esc(a.title)}</h3>${a.body ? `<p class="ann-body">${esc(a.body)}</p>` : ''}
+        <div class="ann-meta"><span>${icon('calendar', 13)} Published ${ERP.fmt.dateTime(a.at)}</span>${a.pdf ? `<span>${icon('file', 13)} ${esc(a.pdf.name)}${kb}</span>` : ''}<span>By ${esc(by.name)}</span></div>
+      </div>
+      <div class="ann-actions">
+        ${a.pdf ? `<button class="btn btn-ghost btn-sm" data-pdf-view>${icon('eye', 15)} Preview</button><a class="btn btn-ghost btn-sm" download="${esc(a.pdf.name)}" href="${esc(ERP.announcements.pdfUrl(a))}">${icon('download', 15)} Download</a>` : ''}
+        ${me && (a.by === me.empId || me.role === 'admin') ? `<button class="icon-btn" data-del title="Delete announcement" aria-label="Delete">${icon('trash', 16)}</button>` : ''}
+      </div></article>`;
+  }
+  function newAnnouncement() {
+    let pdf = null;
+    const chips = (name, items, on) => `<div class="aud-picker" data-pick="${name}">${items.map(([id, label]) => `<button type="button" class="aud-chip${name === 'prio' ? ` prio-${id}` : ''}${on(id) ? ' on' : ''}" data-v="${id}">${esc(label)}</button>`).join('')}</div>`;
+    const { root } = modal({
+      title: 'New announcement',
+      body: `<label class="field"><span>Title</span><input data-t maxlength="90" placeholder="e.g. Faculty meeting on Friday"></label>
+        <label class="field"><span>Message (optional)</span><textarea data-b rows="5" placeholder="Write the announcement details"></textarea></label>
+        <div class="field"><span>Attachment (PDF, optional)</span><div data-file></div><p class="muted small" style="margin:6px 0 0">Max 2&nbsp;MB.</p></div>
+        <div class="field"><span>Priority</span>${chips('prio', [['low', 'Low'], ['medium', 'Medium'], ['high', 'High']], (id) => id === 'medium')}</div>
+        <div class="field"><span>Send to</span>${chips('aud', [['all', 'Everyone'], ...ERP.announcements.AUDIENCES.map((g) => [g.id, g.label])], (id) => id === 'all')}</div>
+        <p class="muted small" data-aud-note style="margin:0"></p>`,
+      actions: [{ label: 'Cancel', tone: 'ghost' }, { label: 'Post', tone: 'primary', onClick: (close, r) => {
+        const title = $('[data-t]', r).value.trim();
+        if (title.length < 3) { toast('Title is too short', 'bad'); return false; }
+        const audience = $$('[data-pick="aud"] .on', r).map((b) => b.dataset.v);
+        const priority = $('[data-pick="prio"] .on', r).dataset.v;
+        try { ERP.announcements.add({ title, body: $('[data-b]', r).value.trim(), audience: audience.includes('all') ? ['all'] : audience, priority, pdf }); }
+        catch (e) { toast(e.message, 'bad'); return false; }
+        toast('Announcement posted'); refresh(); return true;
+      } }],
+    });
+    const fileBox = $('[data-file]', root);
+    const drawFile = () => {
+      fileBox.innerHTML = pdf ? `<div class="file-pill">${icon('file', 16)}<span title="${esc(pdf.name)}">${esc(pdf.name)}</span><button type="button" class="icon-btn" aria-label="Remove PDF">${icon('x', 14)}</button></div>`
+        : `<label class="btn btn-ghost" style="align-self:flex-start">${icon('upload', 16)} Choose PDF<input type="file" accept="application/pdf,.pdf" hidden></label>`;
+      if (pdf) { $('button', fileBox).onclick = () => { pdf = null; drawFile(); }; return; }
+      $('input', fileBox).onchange = (e) => {
+        const f = e.target.files[0]; if (!f) return;
+        if (f.type !== 'application/pdf' && !/\.pdf$/i.test(f.name)) return toast('Please choose a PDF file', 'bad');
+        if (f.size > 2 * 1024 * 1024) return toast('PDF is too large (max 2 MB)', 'bad');
+        const rd = new FileReader();
+        rd.onload = () => { pdf = { name: f.name, dataUrl: String(rd.result).replace(/^data:[^;]*;/, 'data:application/pdf;') }; drawFile(); };
+        rd.onerror = () => toast('Could not read that file', 'bad');
+        rd.readAsDataURL(f);
+      };
+    };
+    drawFile();
+    const note = () => {
+      const on = $$('[data-pick="aud"] .on', root).map((b) => b.textContent);
+      $('[data-aud-note]', root).textContent = on.includes('Everyone') ? 'Visible to everyone — students, doctors and all staff.' : `Visible only to: ${on.join(', ')}.`;
+    };
+    $('[data-pick="prio"]', root).onclick = (e) => {
+      const b = e.target.closest('[data-v]'); if (!b) return;
+      $$('[data-pick="prio"] .on', root).forEach((x) => x.classList.remove('on')); b.classList.add('on');
+    };
+    $('[data-pick="aud"]', root).onclick = (e) => {
+      const b = e.target.closest('[data-v]'); if (!b) return;
+      const all = $('[data-v="all"]', root);
+      if (b === all) { $$('[data-pick="aud"] .on', root).forEach((x) => x.classList.remove('on')); all.classList.add('on'); }
+      else { all.classList.remove('on'); b.classList.toggle('on'); if (!$('[data-pick="aud"] .on', root)) all.classList.add('on'); }
+      note();
+    };
+    note();
+  }
+  function announcementsPage(el, me, { canPost = false } = {}) {
+    const list = ERP.announcements.all();
+    el.innerHTML = `
+      <div class="card row" style="justify-content:space-between"><div><h3>Announcements</h3><p class="muted" style="margin:2px 0 0">${list.length} notice${list.length === 1 ? '' : 's'}${canPost ? '' : ' for you'}</p></div>
+        ${canPost ? `<button class="btn btn-primary" data-new>${icon('plus', 16)} New announcement</button>` : ''}</div>
+      <div class="ann-list">${list.length ? list.map((a) => annCard(a, me)).join('') : `<div class="card">${empty('No announcements yet', 'megaphone')}</div>`}</div>`;
+    if (canPost) $('[data-new]', el).onclick = newAnnouncement;
+    el.querySelectorAll('.ann-card').forEach((c) => {
+      const a = list.find((x) => x.id === c.dataset.id);
+      const v = $('[data-pdf-view]', c);
+      if (v) v.onclick = () => modal({ title: a.pdf.name, wide: true, body: `<iframe title="${esc(a.pdf.name)}" src="${esc(ERP.announcements.pdfUrl(a))}#toolbar=0&navpanes=0" style="width:100%;height:72vh;border:0;border-radius:12px;background:#fff"></iframe>` });
+      const d = $('[data-del]', c);
+      if (d) d.onclick = async () => {
+        if (!(await confirmBox('Delete announcement?', 'It will be removed for everyone who can see it.', { okLabel: 'Delete', tone: 'danger' }))) return;
+        try { ERP.announcements.remove(a.id); } catch (e) { return toast(e.message, 'bad'); }
+        toast('Announcement deleted'); refresh();
+      };
+    });
+  }
+
+  window.ERP.ui = { $, $$, esc, icon, toast, modal, confirm: confirmBox, avatar, statusBadge, leaveBadge, stat, empty, meter, table, bars, donut, downloadXlsx, shell, go, refresh, syncBadges, applyTheme, ROLE_LABEL, comingSoon, leaveSoon, announcementsPage };
 })();

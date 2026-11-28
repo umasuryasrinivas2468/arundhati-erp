@@ -154,16 +154,6 @@ button.ld-item, .ld-item[data-drill], .ld-item[data-leave] { cursor: pointer; }
 .ld-preview { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
 
 /* ---------- announcements ---------- */
-.ld-ann-list { display: flex; flex-direction: column; gap: 14px; }
-.ld-ann { display: flex; gap: 14px; transition: transform .15s, border-color .15s, opacity .3s; }
-.ld-ann:hover { border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); }
-.ld-ann.out { opacity: 0; transform: translateX(30px); }
-.ld-ann-body { flex: 1; min-width: 0; }
-.ld-ann-body h3 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.ld-ann-body p { margin: 6px 0 10px; white-space: pre-wrap; word-break: break-word; }
-.ld-ann-meta { font-size: 12.5px; color: var(--muted); }
-.ld-ann .icon-btn { width: 34px; height: 34px; color: var(--muted); flex: none; }
-.ld-ann .icon-btn:hover { color: var(--bad); border-color: var(--bad); }
 .ld-count { font-size: 12px; color: var(--muted); font-weight: 600; }
 
 @media (max-width: 860px) {

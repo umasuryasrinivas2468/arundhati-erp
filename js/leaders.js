@@ -546,40 +546,7 @@
   }
 
   // ---------- announcements ----------
-  function announcements(el, me, { canPost = false } = {}) {
-    const list = ERP.announcements.all();
-    el.innerHTML = `
-      <div class="card ld-queue-head"><div><h3>Announcements</h3><p>${list.length} notice${list.length === 1 ? '' : 's'} for all staff</p></div>
-        ${canPost ? `<button class="btn btn-primary" data-new>${icon('plus', 16)} New announcement</button>` : ''}</div>
-      <div class="ld-ann-list">${list.length ? list.map((a) => {
-        const by = ERP.users.byEmp(a.by) || { name: 'Unknown', designation: '' };
-        const fresh = Date.now() - new Date(a.at).getTime() < 172800000;
-        return `<article class="card ld-ann" data-id="${a.id}">${avatar(by.name, 40)}
-          <div class="ld-ann-body"><h3>${esc(a.title)}${fresh ? '<span class="badge badge-accent">New</span>' : ''}</h3><p>${esc(a.body)}</p>
-          <div class="ld-ann-meta"><b>${esc(by.name)}</b> · ${esc(by.designation)} · <span title="${F.dateTime(a.at)}">${F.ago(a.at)}</span></div></div>
-          ${a.by === me.empId ? `<button class="icon-btn" data-del="${a.id}" title="Delete announcement" aria-label="Delete">${icon('trash', 16)}</button>` : ''}</article>`;
-      }).join('') : `<div class="card">${empty('No announcements yet', 'megaphone')}</div>`}</div>`;
-    el.querySelectorAll('[data-del]').forEach((b) => b.onclick = async () => {
-      if (!(await ERP.ui.confirm('Delete announcement?', 'It will be removed for all staff.', { okLabel: 'Delete', tone: 'danger' }))) return;
-      ERP.announcements.remove(b.dataset.del);
-      const card = b.closest('.ld-ann'); card.classList.add('out');
-      toast('Announcement deleted');
-      setTimeout(() => ERP.ui.refresh(), 300);
-    });
-    const nb = el.querySelector('[data-new]');
-    if (nb) nb.onclick = () => modal({
-      title: 'New announcement',
-      body: `<label class="field"><span>Title</span><input data-t maxlength="90" placeholder="e.g. Faculty meeting on Friday"></label>
-        <label class="field"><span>Message</span><textarea data-b rows="5" placeholder="Details for all staff"></textarea></label>
-        <p class="muted small" style="margin:0">Visible to every staff member on their dashboard.</p>`,
-      actions: [{ label: 'Cancel', tone: 'ghost' }, { label: 'Post', tone: 'primary', onClick: (close, root) => {
-        const title = root.querySelector('[data-t]').value.trim(), body = root.querySelector('[data-b]').value.trim();
-        if (title.length < 3) { toast('Title is too short', 'bad'); return false; }
-        if (body.length < 5) { toast('Please write a message', 'bad'); return false; }
-        ERP.announcements.add(title, body, me.empId); toast('Announcement posted'); ERP.ui.refresh(); return true;
-      } }],
-    });
-  }
+  const announcements = (el, me, opts) => ERP.ui.announcementsPage(el, me, opts);
 
   // ---------- staff directory (read-only) ----------
   function directory(el, { key = 'dir' } = {}) {
