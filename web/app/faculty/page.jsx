@@ -297,15 +297,15 @@ function Profile({ me }) {
 
   let score = 0; if (next.length >= 6) score++; if (next.length >= 10) score++; if (/[A-Z]/.test(next) && /[a-z]/.test(next)) score++; if (/\d/.test(next)) score++; if (/[^A-Za-z0-9]/.test(next)) score++;
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault(); setErr({ msg: '', field: '' });
-    const user = ERP.users.byEmp(me.empId);
     const fail = (msg, field) => { setErr({ msg, field }); toast(msg, 'bad'); };
-    if (cur !== user.password) return fail('Current password is incorrect', 'cur');
+    if (!cur) return fail('Enter your current password', 'cur');
     if (next.length < 6) return fail('New password must be at least 6 characters', 'next');
     if (next === cur) return fail('New password must differ from the current one', 'next');
     if (next !== confirm) return fail('Passwords do not match', 'confirm');
-    ERP.users.update(me.empId, { password: next });
+    const error = await ERP.auth.changePassword(cur, next);
+    if (error) return fail(error, /current/i.test(error) ? 'cur' : 'next');
     setCur(''); setNext(''); setConfirm('');
     toast('Password updated successfully');
   };

@@ -6,7 +6,7 @@ role dashboards for students, faculty and administration.
 The app is a **Next.js (App Router)** project in [`web/`](web/), deployed on an
 **EC2** box (systemd running `next start` behind Caddy for automatic HTTPS) with a
 **Supabase Postgres** backend (the whole ERP database stored as one `jsonb` row,
-read/written through `web/app/api/db/route.js`).
+read/written through `web/app/api/[op]/route.js`).
 
 > The previous static HTML/JS app (served by a Node `server.js` with SQLite) was retired
 > in favour of this Next.js build. See git history for that earlier implementation.

@@ -30,14 +30,14 @@ HTTPS and reverse-proxies to it. See the repo root `README.md` and `deploy/setup
 1. Provision/reconfigure the box with `deploy/setup.sh` (installs Node 22 + Caddy, writes
    the systemd unit + Caddyfile, stores the Supabase creds, builds and starts the app).
 2. Supabase env vars `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Settings
-   → API) are read by `app/api/db/route.js`. Run `supabase-schema.sql` (in this folder) once.
+   → API) are read by `app/api/[op]/route.js` (plus `SESSION_SECRET`, made by `deploy/release.sh`). Run `supabase-schema.sql` (in this folder) once.
 3. Pushes to `main` auto-deploy via `.github/workflows/deploy.yml`.
 
 ## Structure
 
 | Path | Role |
 |---|---|
-| `app/api/db/route.js` | The backend — GET/PUT the whole DB as one `jsonb` row in Supabase. |
+| `app/api/[op]/route.js` | The backend — login/logout/password, and `/api/db`: each role reads only what it may see and writes only what it may change (one `jsonb` row in Supabase). |
 | `lib/erp.js` | Data + business-logic layer. Async load, `subscribe()` for reactivity. |
 | `lib/seed/*` | Staff, student and attendance seed data (converted to ES modules). |
 | `lib/ErpProvider.jsx` | `<ErpProvider>`, `useErp()`, `useRequireRole()`. |

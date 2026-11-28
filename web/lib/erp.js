@@ -139,6 +139,7 @@ function seed() {
 const API = (typeof window !== 'undefined' && window.ERP_API_URL) || '/api/db';
 let db = null;
 let serverMode = false;
+let me = null; // empId of the signed-in user (server mode: from the session cookie)
 let loadPromise = null;
 let putInFlight = false, putDirty = false, putTimer = null;
 
@@ -146,14 +147,18 @@ const listeners = new Set();
 const emit = () => { listeners.forEach((fn) => { try { fn(); } catch (e) {} }); };
 function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
+// -> { db, me } when signed in, null when signed out (401), undefined when there's no usable server.
 async function serverGet() {
   try {
     const res = await fetch(API, { cache: 'no-store' });
+    if (res.status === 401) return null;
     if (!res.ok) return undefined;
     const j = await res.json();
-    return j && j.ok ? j.db : undefined; // db may be null when the store is empty
+    return j && j.ok ? j : undefined;
   } catch (e) { return undefined; }
 }
+// Signed out in server mode: nothing is loaded until /api/login succeeds.
+const emptyDb = () => ({ version: DB_VERSION, institution: INSTITUTION, users: [], attendance: [], leaves: [], announcements: [], notifications: [], uploads: [], feePayments: [] });
 async function serverPut() {
   try {
     const res = await fetch(API, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ db }) });
@@ -178,11 +183,14 @@ async function load() {
     serverMode = false;
     try { db = JSON.parse(localStorage.getItem(KEY)); } catch (e) { db = null; }
     if (!db || db.version !== DB_VERSION) { db = seed(); saveLocal(); }
+    try { me = sessionStorage.getItem(SESSION); } catch (e) {}
     return db;
   }
   serverMode = true;
-  if (!remote || remote.version !== DB_VERSION) { db = seed(); saveLocal(); await serverPut(); }
-  else { db = remote; saveLocal(); }
+  try { localStorage.removeItem(KEY); } catch (e) {} // never keep server data in the browser
+  if (!remote) { db = emptyDb(); me = null; return db; }
+  db = remote.db && remote.db.version === DB_VERSION ? remote.db : emptyDb();
+  me = remote.me;
   return db;
 }
 
@@ -190,8 +198,8 @@ async function load() {
 function ready() { if (!loadPromise) loadPromise = load(); return loadPromise; }
 const isReady = () => db !== null;
 
-function save() { saveLocal(); if (serverMode) serverPutAsync(); emit(); }
-async function reset() { db = seed(); saveLocal(); if (serverMode) await serverPut(); emit(); return db; }
+function save() { if (serverMode) serverPutAsync(); else saveLocal(); emit(); }
+async function reset() { db = seed(); if (serverMode) await serverPut(); else saveLocal(); emit(); return db; }
 
 if (typeof window !== 'undefined') {
   window.addEventListener('pagehide', () => { if (serverMode && (putDirty || putInFlight)) { try { navigator.sendBeacon?.(API, new Blob([JSON.stringify({ db })], { type: 'application/json' })); } catch (e) {} } });
@@ -217,21 +225,44 @@ const users = {
 
 // ---------- auth (no navigation side-effects) ----------
 const HOME = { admin: '/admin', principal: '/principal', dean: '/dean', hod: '/hod', faculty: '/faculty', student: '/student' };
+const post = (path, data) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data || {}) })
+  .then((r) => r.json().catch(() => ({ ok: false, error: `Server error (${r.status})` })));
 const auth = {
-  login(username, password) {
+  // Resolves to the user; throws with a message to show on failure.
+  async login(username, password) {
+    if (serverMode) {
+      const j = await post('/api/login', { username, password });
+      if (!j.ok) throw new Error(j.error || 'Invalid username or password. Please try again.');
+      const remote = await serverGet();
+      if (!remote) throw new Error('Signed in, but the data could not be loaded. Please try again.');
+      db = remote.db; me = remote.me; emit();
+      return users.byEmp(me);
+    }
     const q = String(username).trim().toLowerCase();
     const u = db.users.find((x) => x.password === password && (
       x.username.toLowerCase() === q ||
       String(x.empId).toLowerCase() === q ||
       (x.email && x.email.toLowerCase() === q)
     ));
-    if (!u) return null;
-    try { sessionStorage.setItem(SESSION, u.empId); } catch (e) {}
+    if (!u) throw new Error('Invalid username or password. Please try again.');
+    me = u.empId;
+    try { sessionStorage.setItem(SESSION, me); } catch (e) {}
     return u;
   },
-  loginAs(empId) { try { sessionStorage.setItem(SESSION, empId); } catch (e) {} return users.byEmp(empId); },
-  current: () => { try { return users.byEmp(sessionStorage.getItem(SESSION)); } catch (e) { return undefined; } },
-  logout() { try { sessionStorage.removeItem(SESSION); } catch (e) {} },
+  current: () => users.byEmp(me),
+  logout() {
+    me = null;
+    try { sessionStorage.removeItem(SESSION); } catch (e) {}
+    if (serverMode) { post('/api/logout'); db = emptyDb(); emit(); }
+  },
+  // Resolves to null on success, else an error message.
+  async changePassword(current, next) {
+    if (serverMode) { const j = await post('/api/password', { current, next }); return j.ok ? null : j.error || 'Could not change password'; }
+    const u = users.byEmp(me);
+    if (!u || u.password !== current) return 'Current password is incorrect';
+    users.update(me, { password: next });
+    return null;
+  },
   homeFor: (role) => HOME[role] || '/',
 };
 

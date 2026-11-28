@@ -48,12 +48,10 @@ export default function LoginPage() {
     if (busyRef.current) return;
     if (!user.trim() || !pass) return fail('Enter both username and password.');
     setBusy(true); busyRef.current = true; setError('');
-    setTimeout(() => {
-      const u = ERP.auth.login(user, pass);
-      if (!u) { onDone && onDone(false); return fail('Invalid username or password. Please try again.'); }
+    ERP.auth.login(user, pass).then((u) => {
       setOkName(u.name.split(' ').slice(0, 2).join(' '));
       setTimeout(() => router.push(ERP.auth.homeFor(u.role)), 380);
-    }, 420);
+    }, (e) => { onDone && onDone(false); fail(e.message); });
   };
 
   const onSubmit = (e) => { e.preventDefault(); attempt(username, password); };

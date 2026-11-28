@@ -27,6 +27,8 @@ set_env() { # KEY VALUE — upsert into $DATA/env
 }
 [ -n "${SUPABASE_URL:-}" ] && set_env SUPABASE_URL "$SUPABASE_URL"
 [ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ] && set_env SUPABASE_SERVICE_ROLE_KEY "$SUPABASE_SERVICE_ROLE_KEY"
+# Session-cookie signing key: made once, kept across deploys (changing it signs everyone out).
+grep -q '^SESSION_SECRET=' "$DATA/env" || set_env SESSION_SECRET "$(openssl rand -hex 32)"
 if ! grep -q '^SUPABASE_URL=' "$DATA/env" || ! grep -q '^SUPABASE_SERVICE_ROLE_KEY=' "$DATA/env"; then
   echo "WARNING: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing in $DATA/env — /api/db will return {ok:false}."
 fi
