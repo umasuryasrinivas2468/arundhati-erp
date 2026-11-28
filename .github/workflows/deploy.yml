@@ -73,7 +73,9 @@ jobs:
               bash "$APP_DIR/deploy/release.sh"
           REMOTE
 
-      # The app must answer with {"ok":true} (Supabase reachable) through Caddy; otherwise roll back.
+      # The app must be UP through Caddy: /api/db answers with its JSON ({"ok":true} when
+      # Supabase is configured, {"ok":false} in offline mode until the creds are added).
+      # A missing/5xx/HTML response means the app isn't serving -> roll back.
       - name: Health check (rolls back on failure)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -82,17 +84,21 @@ jobs:
           for i in $(seq 1 18); do
             body="$(curl -s -m 10 "$SITE_URL/api/db" || true)"
             echo "attempt $i: ${body:0:80}"
-            case "$body" in *'"ok":true'*) exit 0;; esac
+            case "$body" in *'"ok":true'*|*'"ok":false'*) exit 0;; esac
             sleep 5
           done
-          echo "::error::New version not serving {ok:true}, rolling back to $PREV_SHA"
+          echo "::error::App not serving /api/db JSON, rolling back to $PREV_SHA"
           ssh prod "APP_DIR='$APP_DIR' PREV='$PREV_SHA' SUPABASE_URL='$SUPABASE_URL' SUPABASE_SERVICE_ROLE_KEY='$SUPABASE_SERVICE_ROLE_KEY' bash -s" <<'REMOTE'
             set -euo pipefail
             cd "$APP_DIR"
             sudo git reset -q --hard "$PREV"
-            sudo env APP="$APP_DIR" \
-              SUPABASE_URL="$SUPABASE_URL" SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
-              bash "$APP_DIR/deploy/release.sh"
+            if [ -f "$APP_DIR/deploy/release.sh" ]; then
+              sudo env APP="$APP_DIR" \
+                SUPABASE_URL="$SUPABASE_URL" SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
+                bash "$APP_DIR/deploy/release.sh"
+            else
+              sudo systemctl restart arundhati-erp || true
+            fi
           REMOTE
           exit 1
 
