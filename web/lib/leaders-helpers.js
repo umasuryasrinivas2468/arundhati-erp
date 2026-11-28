@@ -6,7 +6,7 @@ const U = ERP.util, F = ERP.fmt, LS = ERP.LEAVE_STATE;
 export const PENDING = [LS.PENDING_HOD, LS.PENDING_PRINCIPAL];
 export const LIVE = [...PENDING, LS.APPROVED];
 export const STAFF_ROLES = ['faculty', 'hod', 'dean', 'principal'];
-export const TYPE_TONE = { CL: 'accent', EL: 'info', ML: 'bad', OD: 'ok', LOP: 'warn' };
+export const TYPE_TONE = { CL: 'accent', AL: 'info', OD: 'ok', LOP: 'warn' };
 export const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
