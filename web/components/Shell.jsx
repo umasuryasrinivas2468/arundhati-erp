@@ -8,6 +8,7 @@ import { Icon } from './Icon';
 import { Avatar } from './ui';
 
 const ROLE_LABEL = { admin: 'Administrator', principal: 'Principal', dean: 'Dean', hod: 'Head of Department', faculty: 'Faculty / Staff', student: 'Student' };
+const PORTAL_LABEL = { admin: 'Admin Portal', principal: 'Principal Portal', dean: 'Dean Portal', hod: 'HOD Portal', faculty: 'Faculty Portal', student: 'Student Portal' };
 
 export function Shell({ user, sections }) {
   const erp = useErp();
@@ -40,7 +41,7 @@ export function Shell({ user, sections }) {
 
   // Keep document title + scroll in sync with the active section.
   useEffect(() => {
-    document.title = `${active.label} · Arundhati ERP`;
+    document.title = `${active.label} · CampusHub`;
     window.scrollTo(0, 0);
     setNavOpen(false);
   }, [active]);
@@ -63,8 +64,8 @@ export function Shell({ user, sections }) {
     <div className={`app-shell${navOpen ? ' nav-open' : ''}`} ref={rootRef}>
       <aside className="sidebar" id="sidebar">
         <a className="brand" href={ERP.auth.homeFor(user.role)}>
-          <span className="brand-mark"><Icon name="cross" size={20} /></span>
-          <span><b>Arundhati ERP</b><small>{ERP.INSTITUTION}</small></span>
+          <span className="brand-mark"><Icon name="home" size={20} /></span>
+          <span><b>CampusHub AIMS</b><small className="brand-portal">{PORTAL_LABEL[user.role] || 'Portal'}</small></span>
         </a>
         <nav className="nav">
           {sections.map((s) => {
@@ -127,9 +128,16 @@ export function Shell({ user, sections }) {
               {notifOpen && (
                 <div className="notif-panel">
                   <div className="demo-head">Notifications</div>
-                  {notifs.length ? notifs.map((n) => (
-                    <div key={n.id} className={`notif-item ${n.read ? '' : 'unread'}`}><p>{n.text}</p><small>{ERP.fmt.ago(n.at)}</small></div>
-                  )) : <p className="muted small" style={{ padding: '12px 14px' }}>You&apos;re all caught up.</p>}
+                  {notifs.length ? notifs.map((n) => {
+                    const prio = n.priority ? ERP.announcements.priorityMeta(n.priority) : null;
+                    return (
+                      <div key={n.id} className={`notif-item ${n.read ? '' : 'unread'}${n.link ? ' click' : ''}`}
+                        onClick={n.link ? () => { setNotifOpen(false); if (location.hash === n.link) window.dispatchEvent(new HashChangeEvent('hashchange')); else location.hash = n.link; } : undefined}>
+                        <b>{n.text}</b>{n.sub ? <p>{n.sub}</p> : null}
+                        <div className="notif-foot">{prio ? <span className={`badge ${prio.cls}`}>{prio.label}</span> : null}<small>{ERP.fmt.ago(n.at)}</small></div>
+                      </div>
+                    );
+                  }) : <p className="muted small" style={{ padding: '12px 14px' }}>You&apos;re all caught up.</p>}
                 </div>
               )}
             </div>

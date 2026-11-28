@@ -21,10 +21,9 @@ const INSTITUTION = 'Arundhati Medical College & Hospital';
 const DEPARTMENTS = ERP_SEED.departments;
 
 const LEAVE_TYPES = [
-  { code: 'CL', name: 'Casual Leave', quota: 12 },
-  { code: 'EL', name: 'Earned Leave', quota: 15 },
-  { code: 'ML', name: 'Medical Leave', quota: 10 },
-  { code: 'OD', name: 'On Duty', quota: 10 },
+  { code: 'CL', name: 'Casual Leave', quota: 24 },
+  { code: 'AL', name: 'Academic Leave', quota: 8 },
+  { code: 'OD', name: 'On Duty', quota: null },
   { code: 'LOP', name: 'Loss of Pay', quota: null },
 ];
 
@@ -59,8 +58,17 @@ function daysBetween(from, to) {
 }
 const workingDays = (from, to) => daysBetween(from, to).filter((d) => !isSunday(d));
 
-const DB_VERSION = 4;
+const DB_VERSION = 6;
 const ROMAN = { 2: 'II', 3: 'III', 4: 'IV' };
+
+// MBBS annual tuition fee per admission category (₹ per academic year).
+const FEE_BY_CATEGORY = { A: 60000, B: 1155000, C: 2300000 };
+// Academic year label for a date; the AY rolls over in June.
+function academicYearOf(d = new Date()) {
+  const y = d.getFullYear();
+  return d.getMonth() >= 5 ? `${y}-${String((y + 1) % 100).padStart(2, '0')}` : `${y - 1}-${String(y % 100).padStart(2, '0')}`;
+}
+const CURRENT_AY = academicYearOf();
 
 // ---------- seed ----------
 function seedUsers() {
@@ -83,10 +91,12 @@ function seedStudents() {
     name: s.name,
     year: s.year,
     batch: s.batch,
+    category: s.category || null,
     designation: `${ROMAN[s.year] || s.year} MBBS Student`,
     dept: null, phone: '', joinDate: '',
   }));
 }
+
 
 const SEED_UPLOAD_ID = 'UP-seed-biometric-oct2026';
 function seedAttendance() {
@@ -117,8 +127,9 @@ function seed() {
     attendance,
     uploads: seedUploads(attendance),
     leaves: [],
+    feePayments: [],
     announcements: [
-      { id: uid('AN'), title: 'Biometric sync', body: 'October 2026 attendance has been imported from the biometric Basic Work Duration reports. New months upload via Admin → Upload attendance.', by: 'ADM001', at: new Date().toISOString() },
+      { id: uid('AN'), title: 'Biometric sync', body: 'October 2026 attendance has been imported from the biometric Basic Work Duration reports. New months upload via Admin → Upload attendance.', by: 'ADM001', at: new Date().toISOString(), audience: ['all'] },
     ],
     notifications: [],
   };
@@ -218,6 +229,7 @@ const auth = {
     try { sessionStorage.setItem(SESSION, u.empId); } catch (e) {}
     return u;
   },
+  loginAs(empId) { try { sessionStorage.setItem(SESSION, empId); } catch (e) {} return users.byEmp(empId); },
   current: () => { try { return users.byEmp(sessionStorage.getItem(SESSION)); } catch (e) { return undefined; } },
   logout() { try { sessionStorage.removeItem(SESSION); } catch (e) {} },
   homeFor: (role) => HOME[role] || '/',
@@ -305,7 +317,9 @@ const attendance = {
 };
 
 // ---------- leaves ----------
-function notify(to, text) { db.notifications.unshift({ id: uid('NT'), to, text, at: new Date().toISOString(), read: false }); }
+function notify(to, text, extra = {}) {
+  db.notifications.unshift({ id: uid('NT'), to, text, sub: extra.sub || '', link: extra.link || '', priority: extra.priority || '', at: new Date().toISOString(), read: false });
+}
 
 const leaves = {
   all: () => db.leaves,
@@ -376,9 +390,63 @@ const leaves = {
 };
 
 // ---------- announcements & notifications ----------
+// Audience groups a Dean/Principal can target. Membership is derived from the
+// user's role (students) or their `company` (staff split).
+const ANNOUNCEMENT_AUDIENCES = [
+  { id: 'students', label: 'Students' },
+  { id: 'doctors', label: 'Doctors' },
+  { id: 'college', label: 'Faculty / College staff' },
+  { id: 'hospital', label: 'Hospital staff' },
+  { id: 'other', label: 'Other staff' },
+];
+const COMPANY_GROUP = { 'AIMS-DOCTORS': 'doctors', 'AIMS-COLLEGE': 'college', 'AIMS-HOSPITAL': 'hospital', 'AIMS-OTHER STAFF': 'other' };
+
 const announcements = {
+  AUDIENCES: ANNOUNCEMENT_AUDIENCES,
   all: () => db.announcements.slice().sort((a, b) => b.at.localeCompare(a.at)),
-  add(title, body, by) { db.announcements.push({ id: uid('AN'), title, body, by, at: new Date().toISOString() }); save(); },
+  // Which audience groups a user belongs to.
+  groupsOf(user) {
+    if (!user) return [];
+    if (user.role === 'student') return ['students'];
+    const g = COMPANY_GROUP[user.company];
+    return g ? [g] : [];
+  },
+  // Can this user see this announcement?
+  visibleTo(a, user) {
+    const aud = (a.audience && a.audience.length) ? a.audience : ['all'];
+    if (aud.includes('all')) return true;
+    if (!user) return false;
+    // Admin / Principal / Dean / HOD always see every notice (oversight).
+    if (['admin', 'principal', 'dean', 'hod'].includes(user.role)) return true;
+    return aud.some((g) => announcements.groupsOf(user).includes(g));
+  },
+  forUser: (user) => announcements.all().filter((a) => announcements.visibleTo(a, user)),
+  // Human-readable audience label for a notice.
+  audienceLabel(a) {
+    const aud = (a.audience && a.audience.length) ? a.audience : ['all'];
+    if (aud.includes('all')) return 'Everyone';
+    return aud.map((g) => ANNOUNCEMENT_AUDIENCES.find((x) => x.id === g)?.label || g).join(', ');
+  },
+  // Priority badge metadata ({ label, cls }) for a notice or priority string.
+  priorityMeta(x) {
+    const p = (typeof x === 'string' ? x : x?.priority) || 'medium';
+    const map = { low: ['Low', 'badge-muted'], medium: ['Medium', 'badge-warn'], high: ['High', 'badge-bad'] };
+    const [label, cls] = map[p] || map.medium;
+    return { label, cls, priority: p };
+  },
+  add(title, body, by, audience = ['all'], priority = 'medium', pdf = null) {
+    const aud = Array.isArray(audience) && audience.length ? audience : ['all'];
+    const prio = ['low', 'medium', 'high'].includes(priority) ? priority : 'medium';
+    const att = pdf && pdf.dataUrl ? { name: pdf.name || 'attachment.pdf', dataUrl: pdf.dataUrl, size: pdf.size || 0 } : null;
+    db.announcements.push({ id: uid('AN'), title, body, by, at: new Date().toISOString(), audience: aud, priority: prio, pdf: att });
+    // Push a bell notification to everyone in the target audience (not the poster).
+    db.users.forEach((u) => {
+      if (u.empId === by) return;
+      const inAud = aud.includes('all') || announcements.groupsOf(u).some((g) => aud.includes(g));
+      if (inAud) notify(u.empId, `New announcement: ${title}`, { sub: body, link: '#announcements', priority: prio });
+    });
+    save();
+  },
   remove(id) { db.announcements = db.announcements.filter((a) => a.id !== id); save(); },
 };
 const notifications = {
@@ -400,14 +468,56 @@ const fmt = {
   deptName: (code) => DEPARTMENTS.find((d) => d.code === code)?.name || '—',
   leaveName: (code) => LEAVE_TYPES.find((t) => t.code === code)?.name || code,
   initials: (name) => name.replace(/^Dr\.\s*/, '').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase(),
+  inr: (n) => (n == null || n === '' ? '—' : `₹${Number(n).toLocaleString('en-IN')}`),
   MONTHS,
 };
 
+// ---------- fees ----------
+const fees = {
+  rates: () => ({ ...FEE_BY_CATEGORY }),
+  rate: (cat) => FEE_BY_CATEGORY[cat] || 0,
+  academicYear: () => CURRENT_AY,
+  paymentsFor: (roll, ay = CURRENT_AY) => (db.feePayments || [])
+    .filter((p) => p.roll === roll && p.academicYear === ay)
+    .sort((a, b) => b.at.localeCompare(a.at)),
+  summaryFor(roll) {
+    const u = users.byRoll(roll);
+    const category = u?.category || null;
+    const annual = category ? FEE_BY_CATEGORY[category] : 0;
+    const payments = fees.paymentsFor(roll);
+    const paid = payments.reduce((s, p) => s + (p.amount || 0), 0);
+    const balance = Math.max(0, annual - paid);
+    const percent = annual > 0 ? Math.min(100, Math.round((paid / annual) * 100)) : 0;
+    const status = !category ? 'none' : (annual > 0 && paid >= annual) ? 'paid' : paid > 0 ? 'partial' : 'pending';
+    return { category, annual, paid, balance, percent, status, academicYear: CURRENT_AY, payments };
+  },
+  recordPayment({ roll, amount, mode = 'Cash', reference = '', recordedBy, academicYear = CURRENT_AY }) {
+    const amt = Math.round(+amount || 0);
+    if (!(amt > 0)) throw new Error('Enter a valid payment amount');
+    if (!users.byRoll(roll)) throw new Error(`Unknown roll number ${roll}`);
+    const p = { id: uid('FEE'), roll, academicYear, amount: amt, at: new Date().toISOString(), mode, reference, recordedBy };
+    (db.feePayments = db.feePayments || []).push(p);
+    notify(roll, `Fee payment of ${fmt.inr(amt)} recorded for ${academicYear}`);
+    save();
+    return p;
+  },
+};
+
+const DEMO = [
+  { role: 'admin', label: 'Admin', username: 'admin', password: 'admin123', empId: 'ADM001' },
+  { role: 'principal', label: 'Principal', username: 'c024', password: 'aims@123', empId: 'C024' },
+  { role: 'dean', label: 'Dean', username: '755', password: 'aims@123', empId: '755' },
+  { role: 'hod', label: 'HOD (Pathology)', username: '817', password: 'aims@123', empId: '817' },
+  { role: 'faculty', label: 'Faculty / Staff', username: '1140', password: 'aims@123', empId: '1140' },
+  { role: 'student', label: 'Student (MBBS)', username: '2501052001', password: '2501052001', empId: '2501052001' },
+];
+
 export const ERP = {
-  INSTITUTION, DEPARTMENTS, LEAVE_TYPES, STATUS, LEAVE_STATE,
+  INSTITUTION, DEPARTMENTS, LEAVE_TYPES, STATUS, LEAVE_STATE, FEE_BY_CATEGORY,
   util: { iso, today, parseISO, daysBetween, workingDays, isSunday, uid },
   db: () => db, save, reset, ready, isReady, subscribe,
-  users, auth, attendance, leaves, announcements, notifications, fmt,
+  users, auth, attendance, leaves, announcements, notifications, fees, fmt,
+  DEMO,
 };
 
 export default ERP;

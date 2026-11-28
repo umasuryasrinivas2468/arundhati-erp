@@ -26,6 +26,34 @@ export function openModal(cfg) {
   return { id, close };
 }
 
+// Read-only PDF viewer modal (no download button; toolbar hidden best-effort).
+export function openPdfViewer(pdf) {
+  if (!pdf || !pdf.dataUrl) return;
+  openModal({
+    title: pdf.name || 'Attachment',
+    wide: true,
+    body: (
+      <iframe
+        title={pdf.name || 'Attachment'}
+        src={`${pdf.dataUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+        style={{ width: '100%', height: '72vh', border: 0, borderRadius: 12, background: '#fff' }}
+      />
+    ),
+    actions: [{ label: 'Close', tone: 'ghost' }],
+  });
+}
+
+// Trigger a browser download of an attachment ({ name, dataUrl }).
+export function downloadPdf(pdf) {
+  if (!pdf || !pdf.dataUrl) return;
+  const a = document.createElement('a');
+  a.href = pdf.dataUrl;
+  a.download = pdf.name || 'attachment.pdf';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 export function confirmBox(title, message, opts = {}) {
   const { okLabel = 'Confirm', tone = 'primary', withRemark = false } = opts;
   return new Promise((resolve) => {
