@@ -1,9 +1,22 @@
 {
-  "name": "arundhati-erp",
+  "name": "arundhati-erp-web",
   "version": "1.0.0",
   "private": true,
-  "description": "Staff attendance & leave ERP for Arundhati Medical College & Hospital (static front-end + Vercel function + Supabase shared store).",
+  "description": "Arundhati ERP — Next.js front-end (/api/db backed by Supabase Postgres).",
   "engines": {
     "node": ">=18"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "15.1.6",
+    "qrcode-generator": "^1.4.4",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "xlsx": "0.18.5"
   }
 }
