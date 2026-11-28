@@ -1,9 +1,42 @@
 'use client';
 import { useEffect, useRef } from 'react';
 import { Icon } from './Icon';
+import { openPdfViewer, downloadPdf } from './Modal';
 import ERP from '@/lib/erp';
 
 export const initials = (name) => ERP.fmt.initials(name);
+
+// Shared announcement card (priority label + audience, title, body, meta, PDF actions).
+// Pass onDelete to show a delete button (poster's own notices).
+export function AnnouncementCard({ a, onDelete = null }) {
+  const by = ERP.users.byEmp(a.by) || { name: 'Unknown', designation: '' };
+  const prio = ERP.announcements.priorityMeta(a);
+  const fresh = Date.now() - new Date(a.at).getTime() < 172800000;
+  const sizeKB = a.pdf && a.pdf.size ? `${Math.max(1, Math.round(a.pdf.size / 1024))} KB` : '';
+  return (
+    <article className="ann-card">
+      <div className="ann-main">
+        <div className="ann-top">
+          <span className={`ann-cat prio-${prio.priority}`}>{prio.label} priority</span>
+          <span className="ann-aud"><Icon name="users" size={12} /> {ERP.announcements.audienceLabel(a)}</span>
+          {fresh ? <span className="badge badge-accent">New</span> : null}
+        </div>
+        <h3 className="ann-title">{a.title}</h3>
+        {a.body ? <p className="ann-body">{a.body}</p> : null}
+        <div className="ann-meta">
+          <span><Icon name="calendar" size={13} /> Published {ERP.fmt.dateTime(a.at)}</span>
+          {a.pdf ? <span><Icon name="file" size={13} /> {a.pdf.name}{sizeKB ? ` (${sizeKB})` : ''}</span> : null}
+          <span>By {by.name}</span>
+        </div>
+      </div>
+      <div className="ann-actions">
+        {a.pdf ? <button className="btn btn-ghost btn-sm" onClick={() => openPdfViewer(a.pdf)}><Icon name="eye" size={15} /> Preview</button> : null}
+        {a.pdf ? <button className="btn btn-ghost btn-sm" onClick={() => downloadPdf(a.pdf)}><Icon name="download" size={15} /> Download</button> : null}
+        {onDelete ? <button className="icon-btn" title="Delete announcement" aria-label="Delete" onClick={onDelete}><Icon name="trash" size={16} /></button> : null}
+      </div>
+    </article>
+  );
+}
 
 export function Avatar({ name, size = 36 }) {
   let h = 0; for (const c of name || '') h = (h * 31 + c.charCodeAt(0)) % 360;

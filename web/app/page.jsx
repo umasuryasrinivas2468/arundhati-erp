@@ -86,7 +86,7 @@ export default function LoginPage() {
 
       <main className="lg-wrap">
         <header className="lg-head">
-          <span className="lg-mark"><Icon name="cap" size={26} /></span>
+          <span className="lg-mark"><Icon name="home" size={26} /></span>
           <h1 className="lg-title">CampusHub AIMS</h1>
           <p className="lg-sub">Sign in to your portal</p>
         </header>

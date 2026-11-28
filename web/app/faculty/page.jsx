@@ -4,7 +4,7 @@ import ERP from '@/lib/erp';
 import { useErp, useRequireRole } from '@/lib/ErpProvider';
 import { Shell, goSection } from '@/components/Shell';
 import { Icon } from '@/components/Icon';
-import { Stat, Meter, Empty, Avatar, LeaveBadge, StatusBadge, Donut, ComingSoon } from '@/components/ui';
+import { Stat, Meter, Empty, Avatar, LeaveBadge, StatusBadge, Donut, AnnouncementCard } from '@/components/ui';
 import { DataTable } from '@/components/DataTable';
 import { AttendanceCalendar, CalendarLegend } from '@/components/Calendar';
 import { openModal, confirmBox } from '@/components/Modal';
@@ -96,7 +96,7 @@ function Dashboard({ me }) {
   const clAvail = cl.remaining - cl.pending;
   const pctTone = !s.total ? 'info' : s.percent >= 85 ? 'ok' : s.percent >= 75 ? 'warn' : 'bad';
   const myLeaves = ERP.leaves.forEmp(me.empId).slice(0, 5);
-  const anns = ERP.announcements.all().slice(0, 4);
+  const anns = ERP.announcements.forUser(me).slice(0, 4);
   const pend = ERP.leaves.forEmp(me.empId).filter((l) => PENDING.includes(l.status)).length;
 
   return (
@@ -282,177 +282,6 @@ function Attendance({ me }) {
   );
 }
 
-// ================= APPLY LEAVE =================
-function Apply({ me }) {
-  useErp();
-  const bal = ERP.leaves.balance(me.empId);
-  const avail = (b) => (b.quota == null ? Infinity : b.remaining - b.pending);
-  const h = hodOf(me), p = principal();
-  const tomorrow = useMemo(() => { const d = new Date(); d.setDate(d.getDate() + 1); if (d.getDay() === 0) d.setDate(d.getDate() + 1); return util.iso(d); }, []);
-  const firstType = (bal.find((b) => avail(b) > 0) || bal[0]).code;
-
-  const [type, setType] = useState(firstType);
-  const [from, setFrom] = useState(tomorrow);
-  const [to, setTo] = useState(tomorrow);
-  const [halfDay, setHalfDay] = useState(false);
-  const [reason, setReason] = useState('');
-  const [error, setError] = useState({ msg: '', field: '' });
-
-  const effTo = to && to >= from ? to : from;
-  const single = from && from === effTo && !util.isSunday(from);
-  const hd = single && halfDay;
-  const b = bal.find((x) => x.code === type);
-  const wd = from && effTo ? util.workingDays(from, effTo).length : 0;
-  const totalDays = from && effTo ? util.daysBetween(from, effTo).length : 0;
-  const n = hd ? 0.5 : wd;
-  const a = avail(b);
-  const over = b && b.quota != null && n > a;
-  const sundays = totalDays - wd;
-  const sub = from && effTo
-    ? `${fmt.date(from)}${from !== effTo ? ` → ${fmt.date(effTo)}` : ''}${sundays ? ` · ${sundays} Sunday${sundays > 1 ? 's' : ''} excluded` : ''}`
-    : 'Pick your dates';
-  const len = reason.length;
-
-  const submit = (e) => {
-    e.preventDefault(); setError({ msg: '', field: '' });
-    if (!from) return setError({ msg: 'Choose a start date', field: 'from' });
-    if (!effTo) return setError({ msg: 'Choose an end date', field: 'to' });
-    try {
-      const l = ERP.leaves.apply({ empId: me.empId, type, from, to: effTo, reason, halfDay: hd });
-      toast(`${l.type} leave for ${daysLabel(l.days)} submitted to ${l.status === LEAVE_STATE.PENDING_HOD ? 'HOD' : 'Principal'}`);
-      goSection('dashboard');
-    } catch (err) {
-      const msg = err.message || String(err);
-      const field = /reason/i.test(msg) ? 'reason' : /balance/i.test(msg) ? 'type' : /date|range|overlap|working/i.test(msg) ? 'from' : '';
-      setError({ msg, field });
-      toast(msg, 'bad');
-    }
-  };
-
-  const pickType = (code) => {
-    const bb = bal.find((x) => x.code === code);
-    if (bb.quota != null && avail(bb) <= 0) return toast(`No ${code} balance left`, 'bad');
-    setType(code);
-  };
-
-  return (
-    <>
-      <div className="card">
-        <div className="card-head"><div><h3>Your leave balance · {now.getFullYear()}</h3><p>Click a card to choose that leave type</p></div></div>
-        <div className="bal-grid">
-          {bal.map((bb) => {
-            const av = avail(bb);
-            const pct = bb.quota ? ((bb.used + bb.pending) / bb.quota) * 100 : 0;
-            return (
-              <div key={bb.code} className={`bal-card${type === bb.code ? ' sel' : ''}`} tabIndex={0} role="button" aria-label={bb.name}
-                onClick={() => pickType(bb.code)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickType(bb.code); } }}>
-                <div className="row" style={{ justifyContent: 'space-between' }}>
-                  <span className="code">{bb.code}</span>
-                  {bb.quota == null ? <span className="badge badge-muted">No cap</span> : av <= 0 ? <span className="badge badge-bad">Exhausted</span> : null}
-                </div>
-                <div>
-                  <div className="muted small" style={{ fontWeight: 600 }}>{bb.name}</div>
-                  <div className="big">{bb.quota == null ? '∞' : av}{bb.quota == null ? '' : <small> / {bb.quota} left</small>}</div>
-                </div>
-                {bb.quota == null ? <div className="meter"><div style={{ width: 0 }} /></div> : <Meter pct={100 - pct} tone={pct >= 90 ? 'bad' : pct >= 60 ? 'warn' : 'ok'} />}
-                <div className="nums"><span>Used <b>{bb.used}</b></span><span>Pending <b>{bb.pending}</b></span></div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      <div className="cols">
-        <form className="card" onSubmit={submit} noValidate>
-          <div className="card-head"><div><h3>Leave application</h3><p>Sundays are excluded automatically</p></div></div>
-          {error.msg ? <div className="form-error"><Icon name="alert" size={16} /><span>{error.msg}</span></div> : null}
-          <label className={`field${error.field === 'type' ? ' err' : ''}`}><span>Leave type</span>
-            <select value={type} onChange={(e) => setType(e.target.value)}>
-              {bal.map((bb) => (
-                <option key={bb.code} value={bb.code} disabled={bb.quota != null && avail(bb) <= 0}>
-                  {bb.name} ({bb.code}) — {bb.quota == null ? 'no limit' : `${avail(bb)} of ${bb.quota} remaining`}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="grid-2">
-            <label className={`field${error.field === 'from' ? ' err' : ''}`}><span>From</span><input type="date" value={from} onChange={(e) => { setFrom(e.target.value); if (to < e.target.value) setTo(e.target.value); }} /></label>
-            <label className="field"><span>To</span><input type="date" min={from} value={effTo} onChange={(e) => setTo(e.target.value)} /></label>
-          </div>
-          <label className={`check${single ? '' : ' disabled'}`}><input type="checkbox" checked={hd} disabled={!single} onChange={(e) => setHalfDay(e.target.checked)} /> Half day <span className="muted small" style={{ fontWeight: 500 }}>(only for single-day leave)</span></label>
-          <div className={`daycount${over ? ' over' : ''}`}><span className="n">{n}</span><div><b>working day{n === 1 ? '' : 's'}{hd ? ' (half day)' : ''}</b><small>{over ? `Exceeds your ${b.code} balance of ${a}` : sub}</small></div></div>
-          <label className={`field${error.field === 'reason' ? ' err' : ''}`}><span>Reason</span><textarea rows={4} maxLength={500} placeholder="Briefly describe the reason for your leave" value={reason} onChange={(e) => setReason(e.target.value)} /></label>
-          <div className={`counter ${len > 450 ? 'warn' : ''} ${len && len < 5 ? 'bad' : ''}`}>{len} / 500{len && len < 5 ? ' · at least 5 characters' : ''}</div>
-          <div className="row" style={{ justifyContent: 'flex-end' }}>
-            <button type="button" className="btn btn-ghost" onClick={() => { setType(firstType); setFrom(tomorrow); setTo(tomorrow); setHalfDay(false); setReason(''); setError({ msg: '', field: '' }); }}>Clear</button>
-            <button type="submit" className="btn btn-primary"><Icon name="check" size={16} /> Submit application</button>
-          </div>
-        </form>
-        <div className="section" style={{ gap: 20 }}>
-          <div className="card">
-            <div className="card-head"><div><h3>Approval route</h3><p>Your request moves through these steps</p></div></div>
-            <div className="route">
-              <div className="step"><Avatar name={me.name} size={28} /><div><b>You</b><small>Apply</small></div></div><span className="arrow">→</span>
-              <div className="step"><Avatar name={h ? h.name : 'HOD'} size={28} /><div><b>HOD{h ? ` (${h.name})` : ''}</b><small>Recommend</small></div></div><span className="arrow">→</span>
-              <div className="step"><Avatar name={p ? p.name : 'Principal'} size={28} /><div><b>Principal</b><small>{p ? p.name : 'Final approval'}</small></div></div>
-            </div>
-          </div>
-          <div className="card">
-            <div className="card-head"><div><h3>Good to know</h3></div></div>
-            <ul className="muted small" style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <li>Pending requests count against your balance until decided.</li>
-              <li>Half day uses 0.5 of the selected leave type.</li>
-              <li>You can cancel a request while it is still pending.</li>
-              <li>On Duty (OD) is for conferences, camps and official work.</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
-// ================= MY LEAVES =================
-const FILTERS = [
-  { id: 'all', label: 'All', test: () => true },
-  { id: 'pending', label: 'Pending', test: (l) => PENDING.includes(l.status) },
-  { id: 'approved', label: 'Approved', test: (l) => l.status === LEAVE_STATE.APPROVED },
-  { id: 'rejected', label: 'Rejected', test: (l) => l.status === LEAVE_STATE.REJECTED },
-];
-
-function Leaves({ me }) {
-  useErp();
-  const [filter, setFilter] = useState('all');
-  const all = ERP.leaves.forEmp(me.empId);
-  const rows = all.filter(FILTERS.find((x) => x.id === filter).test).map((l) => ({ ...l, __key: l.id, __rowClass: 'clickable', __onClick: () => openLeaveModal(l.id, me) }));
-
-  return (
-    <div className="card">
-      <div className="leave-tabs">
-        <div className="tabs" role="tablist">
-          {FILTERS.map((x) => (
-            <button key={x.id} className={filter === x.id ? 'active' : ''} onClick={() => setFilter(x.id)}>{x.label}<em>{all.filter(x.test).length}</em></button>
-          ))}
-        </div>
-        <button className="btn btn-primary btn-sm" onClick={() => goSection('apply')}><Icon name="plus" size={16} /> Apply for leave</button>
-      </div>
-      <DataTable
-        rows={rows}
-        pageSize={10}
-        search={(l) => `${l.type} ${fmt.leaveName(l.type)} ${l.reason} ${l.status} ${l.from} ${l.to}`}
-        emptyText={filter === 'all' ? 'You have not applied for any leave yet' : `No ${filter} requests`}
-        columns={[
-          { key: 'type', label: 'Type', render: (l) => <><b>{l.type}</b> <span className="muted small">{fmt.leaveName(l.type)}</span></> },
-          { key: 'from', label: 'Dates', render: (l) => <>{dateSpan(l)}{l.halfDay ? <> <span className="badge badge-info">½</span></> : null}</> },
-          { key: 'days', label: 'Days', align: 'right' },
-          { key: 'status', label: 'Status', render: (l) => <LeaveBadge state={l.status} /> },
-          { key: 'appliedAt', label: 'Applied', render: (l) => <span title={fmt.dateTime(l.appliedAt)}>{fmt.date(l.appliedAt)}</span> },
-          { key: 'id', label: '', noSort: true, align: 'right', render: (l) => <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); openLeaveModal(l.id, me); }}>View</button> },
-        ]}
-      />
-    </div>
-  );
-}
-
 // ================= PROFILE =================
 function Profile({ me }) {
   useErp();
@@ -520,6 +349,196 @@ function Profile({ me }) {
   );
 }
 
+// ================= APPLY LEAVE =================
+function Apply({ me }) {
+  useErp();
+  const bal = ERP.leaves.balance(me.empId);
+  const avail = (b) => (b.quota == null ? Infinity : b.remaining - b.pending);
+  const h = hodOf(me), p = principal();
+  const firstType = (bal.find((b) => avail(b) > 0) || bal[0]).code;
+  const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); if (d.getDay() === 0) d.setDate(d.getDate() + 1); return util.iso(d); })();
+
+  const [type, setType] = useState(firstType);
+  const [from, setFrom] = useState(tomorrow);
+  const [to, setTo] = useState(tomorrow);
+  const [halfDay, setHalfDay] = useState(false);
+  const [reason, setReason] = useState('');
+  const [err, setErr] = useState(null); // { msg, field }
+
+  const toVal = (!to || to < from) ? from : to;
+  const single = from && from === toVal && !util.isSunday(from);
+  const effHalf = single && halfDay;
+  const b = bal.find((x) => x.code === type) || bal[0];
+  const wd = (from && toVal) ? util.workingDays(from, toVal).length : 0;
+  const total = (from && toVal) ? util.daysBetween(from, toVal).length : 0;
+  const n = effHalf ? 0.5 : wd;
+  const a = avail(b);
+  const over = b.quota != null && n > a;
+  const sundays = total - wd;
+  const len = reason.length;
+
+  const clearErr = () => setErr(null);
+  const reset = () => { setType(firstType); setFrom(tomorrow); setTo(tomorrow); setHalfDay(false); setReason(''); setErr(null); };
+
+  const submit = (e) => {
+    e.preventDefault();
+    clearErr();
+    if (!from) return setErr({ msg: 'Choose a start date', field: 'from' });
+    if (!toVal) return setErr({ msg: 'Choose an end date', field: 'to' });
+    try {
+      const l = ERP.leaves.apply({ empId: me.empId, type, from, to: toVal, reason, halfDay: effHalf });
+      toast(`${l.type} leave for ${daysLabel(l.days)} submitted to ${l.status === LEAVE_STATE.PENDING_HOD ? 'HOD' : 'Principal'}`);
+      goSection('leaves');
+    } catch (ex) {
+      const msg = ex.message || String(ex);
+      const field = /reason/i.test(msg) ? 'reason' : /balance/i.test(msg) ? 'type' : /date|range|overlap|working/i.test(msg) ? 'from' : null;
+      setErr({ msg, field });
+      toast(msg, 'bad');
+    }
+  };
+
+  return (
+    <>
+      <div className="card">
+        <div className="card-head"><div><h3>Your leave balance · {now.getFullYear()}</h3><p>Click a card to choose that leave type</p></div></div>
+        <div className="bal-grid">
+          {bal.map((bc) => {
+            const av = avail(bc);
+            const pct = bc.quota ? ((bc.used + bc.pending) / bc.quota) * 100 : 0;
+            const exhausted = bc.quota != null && av <= 0;
+            const pick = () => { if (exhausted) return toast(`No ${bc.code} balance left`, 'bad'); setType(bc.code); clearErr(); };
+            return (
+              <div key={bc.code} className={`bal-card${bc.code === type ? ' sel' : ''}`} tabIndex={0} role="button" aria-label={bc.name}
+                onClick={pick} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } }}>
+                <div className="row" style={{ justifyContent: 'space-between' }}>
+                  <span className="code">{bc.code}</span>
+                  {bc.quota == null ? <span className="badge badge-muted">No cap</span> : exhausted ? <span className="badge badge-bad">Exhausted</span> : null}
+                </div>
+                <div>
+                  <div className="muted small" style={{ fontWeight: 600 }}>{bc.name}</div>
+                  <div className="big">{bc.quota == null ? '∞' : av}{bc.quota == null ? null : <small> / {bc.quota} left</small>}</div>
+                </div>
+                {bc.quota == null ? <div className="meter"><div style={{ width: 0 }} /></div> : <Meter pct={100 - pct} tone={pct >= 90 ? 'bad' : pct >= 60 ? 'warn' : 'ok'} />}
+                <div className="nums"><span>Used <b>{bc.used}</b></span><span>Pending <b>{bc.pending}</b></span></div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div className="cols">
+        <form className="card" onSubmit={submit} noValidate>
+          <div className="card-head"><div><h3>Leave application</h3><p>Sundays are excluded automatically</p></div></div>
+          {err ? <div className="form-error"><Icon name="alert" size={16} /><span>{err.msg}</span></div> : null}
+          <label className={`field${err?.field === 'type' ? ' err' : ''}`}><span>Leave type</span>
+            <select value={type} onChange={(e) => { setType(e.target.value); clearErr(); }}>
+              {bal.map((bc) => (
+                <option key={bc.code} value={bc.code} disabled={bc.quota != null && avail(bc) <= 0}>
+                  {bc.name} ({bc.code}) — {bc.quota == null ? 'no limit' : `${avail(bc)} of ${bc.quota} remaining`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="grid-2">
+            <label className={`field${err?.field === 'from' ? ' err' : ''}`}><span>From</span><input type="date" value={from} onChange={(e) => { setFrom(e.target.value); clearErr(); }} /></label>
+            <label className={`field${err?.field === 'to' ? ' err' : ''}`}><span>To</span><input type="date" min={from} value={toVal} onChange={(e) => { setTo(e.target.value); clearErr(); }} /></label>
+          </div>
+          <label className={`check${single ? '' : ' disabled'}`}><input type="checkbox" checked={effHalf} disabled={!single} onChange={(e) => setHalfDay(e.target.checked)} /> Half day <span className="muted small" style={{ fontWeight: 500 }}>(only for single-day leave)</span></label>
+          <div className={`daycount${over ? ' over' : ''}`}>
+            <span className="n">{n}</span>
+            <div>
+              <b>{`working day${n === 1 ? '' : 's'}${effHalf ? ' (half day)' : ''}`}</b>
+              <small>{over ? `Exceeds your ${b.code} balance of ${a}` : (from && toVal ? `${fmt.date(from)}${from !== toVal ? ` → ${fmt.date(toVal)}` : ''}${sundays ? ` · ${sundays} Sunday${sundays > 1 ? 's' : ''} excluded` : ''}` : 'Pick your dates')}</small>
+            </div>
+          </div>
+          <label className={`field${err?.field === 'reason' ? ' err' : ''}`}><span>Reason</span><textarea rows={4} maxLength={500} placeholder="Briefly describe the reason for your leave" value={reason} onChange={(e) => { setReason(e.target.value); clearErr(); }} /></label>
+          <div className={`counter ${len > 450 ? 'warn' : ''} ${len && len < 5 ? 'bad' : ''}`}>{len} / 500{len && len < 5 ? ' · at least 5 characters' : ''}</div>
+          <div className="row" style={{ justifyContent: 'flex-end' }}>
+            <button type="button" className="btn btn-ghost" onClick={reset}>Clear</button>
+            <button type="submit" className="btn btn-primary"><Icon name="check" size={16} /> Submit application</button>
+          </div>
+        </form>
+        <div className="section" style={{ gap: 20 }}>
+          <div className="card">
+            <div className="card-head"><div><h3>Approval route</h3><p>Your request moves through these steps</p></div></div>
+            <div className="route">
+              <div className="step"><Avatar name={me.name} size={28} /><div><b>You</b><small>Apply</small></div></div><span className="arrow">→</span>
+              <div className="step"><Avatar name={h ? h.name : 'HOD'} size={28} /><div><b>HOD{h ? ` (${h.name})` : ''}</b><small>Recommend</small></div></div><span className="arrow">→</span>
+              <div className="step"><Avatar name={p ? p.name : 'Principal'} size={28} /><div><b>Principal</b><small>{p ? p.name : 'Final approval'}</small></div></div>
+            </div>
+          </div>
+          <div className="card">
+            <div className="card-head"><div><h3>Good to know</h3></div></div>
+            <ul className="muted small" style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <li>Pending requests count against your balance until decided.</li>
+              <li>Half day uses 0.5 of the selected leave type.</li>
+              <li>You can cancel a request while it is still pending.</li>
+              <li>On Duty (OD) is for conferences, camps and official work.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ================= MY LEAVES =================
+const FILTERS = [
+  { id: 'all', label: 'All', test: () => true },
+  { id: 'pending', label: 'Pending', test: (l) => PENDING.includes(l.status) },
+  { id: 'approved', label: 'Approved', test: (l) => l.status === LEAVE_STATE.APPROVED },
+  { id: 'rejected', label: 'Rejected', test: (l) => l.status === LEAVE_STATE.REJECTED },
+];
+
+function MyLeaves({ me }) {
+  useErp();
+  const [filter, setFilter] = useState('all');
+  const all = ERP.leaves.forEmp(me.empId);
+  const rows = all
+    .filter(FILTERS.find((x) => x.id === filter).test)
+    .map((l) => ({ ...l, __key: l.id, __rowClass: 'clickable', __onClick: () => openLeaveModal(l.id, me) }));
+  const columns = [
+    { key: 'type', label: 'Type', render: (l) => <><b>{l.type}</b> <span className="muted small">{fmt.leaveName(l.type)}</span></> },
+    { key: 'from', label: 'Dates', render: (l) => <>{dateSpan(l)}{l.halfDay ? <> <span className="badge badge-info">½</span></> : null}</> },
+    { key: 'days', label: 'Days', align: 'right' },
+    { key: 'status', label: 'Status', render: (l) => <LeaveBadge state={l.status} /> },
+    { key: 'appliedAt', label: 'Applied', render: (l) => <span title={fmt.dateTime(l.appliedAt)}>{fmt.date(l.appliedAt)}</span> },
+    { key: 'id', label: '', noSort: true, align: 'right', render: (l) => <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); openLeaveModal(l.id, me); }}>View</button> },
+  ];
+  return (
+    <div className="card">
+      <div className="leave-tabs">
+        <div className="tabs" role="tablist">
+          {FILTERS.map((x) => (
+            <button key={x.id} className={filter === x.id ? 'active' : ''} onClick={() => setFilter(x.id)}>{x.label}<em>{all.filter(x.test).length}</em></button>
+          ))}
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => goSection('apply')}><Icon name="plus" size={16} /> Apply for leave</button>
+      </div>
+      <DataTable
+        columns={columns}
+        rows={rows}
+        pageSize={10}
+        search={(l) => `${l.type} ${fmt.leaveName(l.type)} ${l.reason} ${l.status} ${l.from} ${l.to}`}
+        emptyText={filter === 'all' ? 'You have not applied for any leave yet' : `No ${filter} requests`}
+      />
+    </div>
+  );
+}
+
+// ================= ANNOUNCEMENTS =================
+function Announcements({ me }) {
+  useErp();
+  const list = ERP.announcements.forUser(me);
+  return (
+    <div className="section" style={{ gap: 14 }}>
+      <div className="row" style={{ justifyContent: 'space-between' }}><h2>Announcements</h2><span className="badge badge-muted">{list.length} notice{list.length === 1 ? '' : 's'}</span></div>
+      <div className="ann-list">
+        {list.length ? list.map((a) => <AnnouncementCard key={a.id} a={a} />) : <div className="card"><Empty msg="No announcements yet" iconName="megaphone" /></div>}
+      </div>
+    </div>
+  );
+}
+
 // ================= PAGE =================
 export default function FacultyPage() {
   const me = useRequireRole(['faculty']);
@@ -528,8 +547,9 @@ export default function FacultyPage() {
   const sections = [
     { id: 'dashboard', label: 'Dashboard', icon: 'home', render: (u) => <Dashboard me={u} /> },
     { id: 'attendance', label: 'My Attendance', icon: 'calendar', render: (u) => <Attendance me={u} /> },
-    { id: 'apply', label: 'Apply Leave', icon: 'plus', render: () => <ComingSoon name="Apply Leave" /> },
-    { id: 'leaves', label: 'My Leaves', icon: 'leave', render: () => <ComingSoon name="My Leaves" /> },
+    { id: 'apply', label: 'Apply Leave', icon: 'plus', render: (u) => <Apply me={u} /> },
+    { id: 'leaves', label: 'My Leaves', icon: 'leave', render: (u) => <MyLeaves me={u} />, badge: pendingCount },
+    { id: 'announcements', label: 'Announcements', icon: 'megaphone', render: (u) => <Announcements me={u} /> },
     { id: 'profile', label: 'Profile', icon: 'user', render: (u) => <Profile me={u} /> },
   ];
   return <Shell user={me} sections={sections} />;
