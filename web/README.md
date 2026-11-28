@@ -1,10 +1,8 @@
-# Arundhati ERP — Next.js front-end
+# CampusHub AIMS — Next.js app
 
-A React/Next.js (App Router) port of the original static HTML/JS app that lives in the
-repo root. **The backend contract is unchanged**: it talks to a `/api/db` endpoint
-backed by **Supabase Postgres** (the whole DB as one `jsonb` row), with the same shared
-store the static build uses. Only the UI layer was rewritten — all business logic (auth,
-leave workflow, attendance rules) was carried over verbatim into `lib/erp.js`.
+A React/Next.js (App Router) app for Arundhati Medical College & Hospital. It talks to a
+`/api/db` endpoint backed by **Supabase Postgres** (the whole DB as one `jsonb` row). All
+business logic (auth, leave workflow, attendance rules) lives in `lib/erp.js`.
 
 ## Run locally
 
@@ -24,23 +22,23 @@ local development.
 npm run build && npm run start
 ```
 
-## Deploy to Vercel
+## Deploy (EC2 + Caddy + Supabase)
 
-This folder is a self-contained Vercel project.
+Production runs on an EC2 box: systemd runs `next start` on port 3000, Caddy terminates
+HTTPS and reverse-proxies to it. See the repo root `README.md` and `deploy/setup.sh`.
 
-1. In your Vercel project settings, set **Root Directory = `web`**.
-2. Add the Supabase env vars — `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
-   (from Supabase → Settings → API, or the Vercel → Supabase integration), which
-   `app/api/db/route.js` reads. Run `supabase-schema.sql` (repo root) once.
-3. Deploy. The old static build stays in the repo root and is unaffected until you
-   switch the root directory.
+1. Provision/reconfigure the box with `deploy/setup.sh` (installs Node 22 + Caddy, writes
+   the systemd unit + Caddyfile, stores the Supabase creds, builds and starts the app).
+2. Supabase env vars `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Settings
+   → API) are read by `app/api/db/route.js`. Run `supabase-schema.sql` (in this folder) once.
+3. Pushes to `main` auto-deploy via `.github/workflows/deploy.yml`.
 
 ## Structure
 
 | Path | Role |
 |---|---|
 | `app/api/db/route.js` | The backend — GET/PUT the whole DB as one `jsonb` row in Supabase. |
-| `lib/erp.js` | Data + business-logic layer (ported from `js/data.js`). Async load, `subscribe()` for reactivity. |
+| `lib/erp.js` | Data + business-logic layer. Async load, `subscribe()` for reactivity. |
 | `lib/seed/*` | Staff, student and attendance seed data (converted to ES modules). |
 | `lib/ErpProvider.jsx` | `<ErpProvider>`, `useErp()`, `useRequireRole()`. |
 | `components/*` | The old `js/ui.js` mini-framework rebuilt as React: `Shell`, `DataTable`, `Modal`, `Toast`, `Icon`, charts (`ui.jsx`), `Calendar`, and the shared leader screens (`leaders.jsx`). |

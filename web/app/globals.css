@@ -647,7 +647,7 @@ button.ld-item, .ld-item[data-drill], .ld-item[data-leave] { cursor: pointer; }
     .demo-grid { grid-template-columns: 1fr; }
   }
 
-/* ============ faculty.html ============ */
+/* ============ faculty portal ============ */
   /* Faculty portal extras */
   .fx-hero { display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; }
   .fx-hero .hero-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; position: relative; z-index: 1; }
@@ -753,7 +753,7 @@ button.ld-item, .ld-item[data-drill], .ld-item[data-leave] { cursor: pointer; }
   }
   @media (max-width: 480px) { .cal { gap: 3px; } .cal-d { border-radius: 7px; font-size: 12px; } .cal-d small { font-size: 9px; } }
 
-/* ============ admin.html ============ */
+/* ============ admin portal ============ */
   /* ---- admin page extras (page-owned; shared styles live in css/styles.css) ---- */
   .adm-hero { display: flex; justify-content: space-between; align-items: center; gap: 18px; flex-wrap: wrap; }
   .adm-hero .row { position: relative; z-index: 1; }
@@ -854,7 +854,7 @@ button.ld-item, .ld-item[data-drill], .ld-item[data-leave] { cursor: pointer; }
     .sticky-actions .muted { width: 100%; }
   }
 
-/* ============ student.html ============ */
+/* ============ student portal ============ */
   /* ---- Student portal ---- */
   .st-hero { display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; }
   .st-hero .hero-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; position: relative; z-index: 1; }

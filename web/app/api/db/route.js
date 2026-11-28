@@ -9,7 +9,7 @@
  *
  * Env vars (injected by the Vercel → Supabase integration, or set from Supabase →
  * Settings → API):  SUPABASE_URL  and  SUPABASE_SERVICE_ROLE_KEY.
- * One-time table setup lives in supabase-schema.sql at the repo root.
+ * One-time table setup lives in supabase-schema.sql in this project (web/).
  */
 
 export const dynamic = 'force-dynamic'; // never cache this handler
