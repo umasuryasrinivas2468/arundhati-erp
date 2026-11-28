@@ -24,6 +24,7 @@ apt-get update -y && apt-get install -y caddy
 
 id erp >/dev/null 2>&1 || useradd --system --home "$DATA" --shell /usr/sbin/nologin erp
 mkdir -p "$DATA/backups" && chown -R erp:erp "$DATA" && chmod 700 "$DATA"
+[ -f "$DATA/env" ] || (umask 077; echo "SESSION_SECRET=$(openssl rand -hex 32)" > "$DATA/env")
 [ -d "$APP/.git" ] || git clone --branch "$BRANCH" "$REPO" "$APP"
 
 cat > /etc/systemd/system/arundhati-erp.service <<EOF
@@ -34,6 +35,7 @@ After=network.target
 User=erp
 WorkingDirectory=$APP
 Environment=PORT=3000 DB_PATH=$DATA/erp.db NODE_ENV=production
+EnvironmentFile=$DATA/env
 ExecStart=/usr/local/bin/node $APP/server.js
 Restart=always
 NoNewPrivileges=true
