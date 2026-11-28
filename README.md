@@ -25,7 +25,7 @@ server (opened as a file / `npx serve`) the app falls back to browser localStora
 
 **Deploy:** `deploy/setup.sh` turns a fresh Ubuntu 24.04 EC2 into the server: Node 22, Caddy
 (automatic HTTPS for `DOMAIN`), a systemd service, nightly SQLite backups (14 days local,
-optional S3 via `BACKUP_BUCKET`). Update later with
+optional S3 via `BACKUP_BUCKET`). Updates are automatic: every push to `main` runs `.github/workflows/deploy.yml` (permission check → SSH deploy → health check, rolls back on failure). Manual fallback:
 `cd /opt/arundhati-erp && git pull && systemctl restart arundhati-erp`.
 
 **Deploy on Vercel + Supabase instead:** the same API runs as `api/handler.js` (routes in

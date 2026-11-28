@@ -1,0 +1,79 @@
+name: Deploy main to EC2
+
+# Every push to main goes live on campushub.aims.ac.in (EC2, systemd + Caddy).
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# One deploy at a time; a newer push waits instead of racing (never cancel mid-deploy).
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      APP_DIR: /opt/arundhati-erp
+      SITE_URL: https://campushub.aims.ac.in
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22 # server runs Node 22 (node:sqlite)
+
+      # Gate: a commit that breaks login/permission rules never reaches the server.
+      - name: Permission check
+        run: node test/server.check.js
+
+      - name: SSH setup
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+          HOST: ${{ secrets.EC2_HOST }}
+          USER: ${{ secrets.EC2_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf 'Host prod\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/deploy\n  StrictHostKeyChecking yes\n  ConnectTimeout 10\n' "$HOST" "$USER" > ~/.ssh/config
+
+      - name: Deploy
+        run: |
+          prev="$(ssh prod "cd '$APP_DIR' && sudo git rev-parse HEAD")"
+          echo "PREV_SHA=$prev" >> "$GITHUB_ENV"
+          echo "Live: $prev -> deploying $GITHUB_SHA"
+          ssh prod "APP_DIR='$APP_DIR' SHA='$GITHUB_SHA' bash -s" <<'REMOTE'
+            set -euo pipefail
+            cd "$APP_DIR"
+            sudo git fetch -q origin main
+            sudo git reset -q --hard "$SHA"
+            sudo git log -1 --oneline
+            sudo systemctl restart arundhati-erp
+          REMOTE
+
+      # The API must answer (signed-out JSON) through Caddy; otherwise put the previous commit back.
+      - name: Health check (rolls back on failure)
+        run: |
+          for i in $(seq 1 12); do
+            body="$(curl -s -m 10 "$SITE_URL/api/db" || true)"
+            echo "attempt $i: ${body:0:60}"
+            case "$body" in *'"ok":false'*) exit 0;; esac
+            sleep 5
+          done
+          echo "::error::New version not serving, rolling back to $PREV_SHA"
+          ssh prod "cd '$APP_DIR' && sudo git reset -q --hard '$PREV_SHA' && sudo systemctl restart arundhati-erp"
+          exit 1
+
+      - name: Clean up key
+        if: always()
+        run: rm -f ~/.ssh/deploy
