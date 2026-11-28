@@ -10,7 +10,7 @@
   const EYE_OFF = '<svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0112 5c6.4 0 10 7 10 7a17 17 0 01-3.2 4.1M6.6 6.6C3.8 8.4 2 12 2 12s3.6 7 10 7a9.8 9.8 0 005.4-1.6"/><path d="M9.9 9.9a3 3 0 004.2 4.2"/></svg>';
 
   // ---------- branding ----------
-  $('#lg-mark').innerHTML = icon('cross', 24);
+  $('#lg-mark').innerHTML = icon('home', 24);
   $('#lg-inst').textContent = ERP.INSTITUTION;
   const feats = [
     ['excel', 'Excel attendance upload', 'Drop the monthly biometric sheet — validated, previewed, imported.'],
