@@ -38,7 +38,7 @@ HTTPS and reverse-proxies to it. See the repo root `README.md` and `deploy/setup
 | Path | Role |
 |---|---|
 | `app/api/db/route.js` | The backend — GET/PUT the whole DB as one `jsonb` row in Supabase. |
-| `lib/erp.js` | Data + business-logic layer (ported from `js/data.js`). Async load, `subscribe()` for reactivity. |
+| `lib/erp.js` | Data + business-logic layer. Async load, `subscribe()` for reactivity. |
 | `lib/seed/*` | Staff, student and attendance seed data (converted to ES modules). |
 | `lib/ErpProvider.jsx` | `<ErpProvider>`, `useErp()`, `useRequireRole()`. |
 | `components/*` | The old `js/ui.js` mini-framework rebuilt as React: `Shell`, `DataTable`, `Modal`, `Toast`, `Icon`, charts (`ui.jsx`), `Calendar`, and the shared leader screens (`leaders.jsx`). |

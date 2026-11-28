@@ -1,6 +1,6 @@
-/* Arundhati ERP — MBBS student roster (generated from the 2/3/4-year MBBS Excel lists).
+/* CampusHub AIMS — MBBS student roster (generated from the 2/3/4-year MBBS Excel lists).
  * 450 students. Each: { roll, name, year (2|3|4), batch }.
- * Consumed by js/data.js, which builds student login users (role 'student',
+ * Consumed by lib/erp.js, which builds student login users (role 'student',
  * username/password/email derived from the roll number). Do not edit by hand.
  */
 export const ERP_STUDENTS = [

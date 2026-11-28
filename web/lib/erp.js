@@ -1,6 +1,6 @@
-/* Arundhati ERP — data + business-logic layer (ported from js/data.js).
+/* CampusHub AIMS — data + business-logic layer.
  *
- * Same rules as the static build, adapted for React/Next:
+ * React/Next data layer:
  *   - seed data comes from ./seed/* ES modules (not window globals)
  *   - the DB loads ASYNchronously (fetch) instead of a synchronous XHR; call
  *     ERP.ready() once and await it before reading data (the ErpProvider does this)

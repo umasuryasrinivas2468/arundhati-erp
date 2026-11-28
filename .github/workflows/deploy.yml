@@ -54,25 +54,30 @@ jobs:
           printf 'Host prod\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/deploy\n  StrictHostKeyChecking yes\n  ConnectTimeout 10\n' "$HOST" "$USER" > ~/.ssh/config
 
       - name: Deploy
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           prev="$(ssh prod "cd '$APP_DIR' && sudo git rev-parse HEAD")"
           echo "PREV_SHA=$prev" >> "$GITHUB_ENV"
           echo "Live: $prev -> deploying $GITHUB_SHA"
-          ssh prod "APP_DIR='$APP_DIR' SHA='$GITHUB_SHA' bash -s" <<'REMOTE'
+          ssh prod "APP_DIR='$APP_DIR' SHA='$GITHUB_SHA' SUPABASE_URL='$SUPABASE_URL' SUPABASE_SERVICE_ROLE_KEY='$SUPABASE_SERVICE_ROLE_KEY' bash -s" <<'REMOTE'
             set -euo pipefail
             cd "$APP_DIR"
             sudo git fetch -q origin main
             sudo git reset -q --hard "$SHA"
             sudo git log -1 --oneline
-            cd "$APP_DIR/web"
-            sudo /usr/local/bin/npm ci
-            sudo /usr/local/bin/npm run build
-            sudo chown -R erp:erp "$APP_DIR/web/.next"
-            sudo systemctl restart arundhati-erp
+            # release.sh (re)writes the systemd unit + Supabase env, builds web/, restarts.
+            sudo env APP="$APP_DIR" \
+              SUPABASE_URL="$SUPABASE_URL" SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
+              bash "$APP_DIR/deploy/release.sh"
           REMOTE
 
       # The app must answer with {"ok":true} (Supabase reachable) through Caddy; otherwise roll back.
       - name: Health check (rolls back on failure)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           for i in $(seq 1 18); do
             body="$(curl -s -m 10 "$SITE_URL/api/db" || true)"
@@ -81,7 +86,14 @@ jobs:
             sleep 5
           done
           echo "::error::New version not serving {ok:true}, rolling back to $PREV_SHA"
-          ssh prod "cd '$APP_DIR' && sudo git reset -q --hard '$PREV_SHA' && cd '$APP_DIR/web' && sudo /usr/local/bin/npm ci && sudo /usr/local/bin/npm run build && sudo chown -R erp:erp '$APP_DIR/web/.next' && sudo systemctl restart arundhati-erp"
+          ssh prod "APP_DIR='$APP_DIR' PREV='$PREV_SHA' SUPABASE_URL='$SUPABASE_URL' SUPABASE_SERVICE_ROLE_KEY='$SUPABASE_SERVICE_ROLE_KEY' bash -s" <<'REMOTE'
+            set -euo pipefail
+            cd "$APP_DIR"
+            sudo git reset -q --hard "$PREV"
+            sudo env APP="$APP_DIR" \
+              SUPABASE_URL="$SUPABASE_URL" SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
+              bash "$APP_DIR/deploy/release.sh"
+          REMOTE
           exit 1
 
       - name: Clean up key
