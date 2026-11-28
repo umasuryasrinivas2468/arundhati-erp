@@ -1,6 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": null,
-  "cleanUrls": false,
-  "trailingSlash": false
+  "functions": { "api/handler.js": { "includeFiles": "js/employees.js" } },
+  "routes": [
+    { "src": "/api/(login|logout|db|op|password)", "dest": "/api/handler?route=$1" },
+    { "src": "/js/(employees|students|attendance-seed)\\.js", "dest": "/api/handler?route=stub/$1" },
+    { "src": "/(?!(?:js|css|assets)/.+|[^/]+\\.html$|$).*", "status": 404 },
+    { "handle": "filesystem" }
+  ]
 }
